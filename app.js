@@ -1,6 +1,6 @@
 /**
  * Court Documents Generator - Main Application
- * Generates professional court documents in Word and PDF formats
+ * Enhanced Witness Statement Builder with proper court document formatting
  */
 
 // Import docx library components
@@ -8,11 +8,9 @@ const {
     Document,
     Paragraph,
     TextRun,
-    HeadingLevel,
     AlignmentType,
     BorderStyle,
     Packer,
-    PageBreak,
     Table,
     TableCell,
     TableRow,
@@ -24,6 +22,13 @@ const {
 const AppState = {
     currentStep: 1,
     documentType: null,
+    proceedingType: 'non-adversarial', // 'non-adversarial' or 'adversarial'
+    writingMode: 'structured', // 'structured' or 'free'
+    parties: [],
+    paragraphs: [], // Array of { id, content }
+    paragraphCounter: 0,
+    exhibits: [], // Array of { id, type, customType, description }
+    exhibitCounter: 0,
     caseDetails: {},
     documentContent: {},
 
@@ -31,39 +36,80 @@ const AppState = {
     reset() {
         this.currentStep = 1;
         this.documentType = null;
+        this.proceedingType = 'non-adversarial';
+        this.writingMode = 'structured';
+        this.parties = [];
+        this.paragraphs = [];
+        this.paragraphCounter = 0;
+        this.exhibits = [];
+        this.exhibitCounter = 0;
         this.caseDetails = {};
         this.documentContent = {};
     }
 };
 
-// Step Navigation
+// ============================================
+// INITIALIZATION
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    initDocTypeSelection();
+    initNavigation();
+    initProceedingTypeToggle();
+    initPartySystem();
+    initWritingModeToggle();
+    initParagraphSystem();
+    initPhraseSuggestions();
+    initExhibitSystem();
+    initDownloadButtons();
+
+    // Add initial party entries
+    addPartyEntry();
+    addPartyEntry();
+});
+
+// ============================================
+// STEP NAVIGATION
+// ============================================
+
 function goToStep(step) {
+    // Update step visibility
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-    document.getElementById(`step${step}`).classList.add('active');
+    const stepEl = document.getElementById(`step${step}`);
+    if (stepEl) {
+        stepEl.classList.add('active');
+    }
+
+    // Update progress bar
+    document.querySelectorAll('.progress-step').forEach((ps, index) => {
+        ps.classList.remove('active', 'completed');
+        if (index + 1 < step) {
+            ps.classList.add('completed');
+        } else if (index + 1 === step) {
+            ps.classList.add('active');
+        }
+    });
+
     AppState.currentStep = step;
 
+    // Step-specific actions
     if (step === 3) {
         showDocumentForm();
     }
-
     if (step === 4) {
         renderPreview();
         setDefaultDate();
     }
 }
 
-// Document Type Selection
-document.addEventListener('DOMContentLoaded', () => {
-    const docTypeCards = document.querySelectorAll('.doc-type-card');
-
-    docTypeCards.forEach(card => {
-        card.addEventListener('click', () => {
-            docTypeCards.forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            AppState.documentType = card.dataset.type;
-
-            // Auto-advance to step 2
-            setTimeout(() => goToStep(2), 300);
+function initNavigation() {
+    // Progress bar click navigation
+    document.querySelectorAll('.progress-step').forEach(step => {
+        step.addEventListener('click', () => {
+            const stepNum = parseInt(step.dataset.step);
+            if (stepNum <= AppState.currentStep || canNavigateToStep(stepNum)) {
+                goToStep(stepNum);
+            }
         });
     });
 
@@ -87,39 +133,203 @@ document.addEventListener('DOMContentLoaded', () => {
         clearAllForms();
         goToStep(1);
     });
+}
 
-    // Download buttons
-    document.getElementById('downloadWord')?.addEventListener('click', downloadWord);
-    document.getElementById('downloadPDF')?.addEventListener('click', downloadPDF);
-});
+function canNavigateToStep(targetStep) {
+    // Allow navigation to completed steps
+    if (targetStep === 1) return true;
+    if (targetStep === 2) return AppState.documentType !== null;
+    if (targetStep === 3) return AppState.caseDetails.caseNumber;
+    if (targetStep === 4) return true;
+    return false;
+}
 
-// Collect case details from form
-function collectCaseDetails() {
-    const required = ['courtName', 'caseNumber'];
-    for (const field of required) {
-        const el = document.getElementById(field);
-        if (!el.value.trim()) {
-            showToast('Please fill in all required fields', 'error');
-            el.focus();
-            return false;
+// ============================================
+// DOCUMENT TYPE SELECTION
+// ============================================
+
+function initDocTypeSelection() {
+    const docTypeCards = document.querySelectorAll('.doc-type-card');
+
+    docTypeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            docTypeCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            AppState.documentType = card.dataset.type;
+
+            // Auto-advance to step 2
+            setTimeout(() => goToStep(2), 300);
+        });
+    });
+}
+
+// ============================================
+// PROCEEDING TYPE TOGGLE
+// ============================================
+
+function initProceedingTypeToggle() {
+    const toggleBtns = document.querySelectorAll('.toggle-group .toggle-btn');
+
+    toggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            toggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            AppState.proceedingType = btn.dataset.value;
+        });
+    });
+}
+
+// ============================================
+// PARTY SYSTEM
+// ============================================
+
+function initPartySystem() {
+    document.getElementById('addParty')?.addEventListener('click', addPartyEntry);
+}
+
+function addPartyEntry() {
+    const container = document.getElementById('partiesContainer');
+    if (!container) return;
+
+    const partyIndex = container.querySelectorAll('.party-entry').length;
+    const designations = partyIndex === 0
+        ? ['Applicant', 'Claimant', 'Petitioner', 'Appellant']
+        : ['Respondent', 'Defendant', 'First Respondent', 'Second Respondent'];
+
+    const entry = document.createElement('div');
+    entry.className = 'party-entry';
+    entry.innerHTML = `
+        <div class="party-header">
+            <span class="party-number">Party ${partyIndex + 1}</span>
+            <button type="button" class="remove-party-btn" title="Remove party">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="form-row">
+            <div class="form-group flex-2">
+                <label>Party Name</label>
+                <input type="text" class="party-name" placeholder="e.g., John Smith">
+            </div>
+            <div class="form-group">
+                <label>Designation</label>
+                <select class="party-designation">
+                    ${designations.map(d => `<option value="${d}">${d}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" class="has-litigation-friend">
+                <span>Has Litigation Friend / Accredited Legal Representative</span>
+            </label>
+        </div>
+        <div class="litigation-friend-details hidden">
+            <div class="form-group">
+                <label>Litigation Friend Name</label>
+                <input type="text" class="litigation-friend-name" placeholder="e.g., Jane Doe">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select class="litigation-friend-role">
+                    <option value="litigation friend">Litigation Friend</option>
+                    <option value="Accredited Legal Representative">Accredited Legal Representative</option>
+                </select>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(entry);
+
+    // Set up event listeners
+    const checkbox = entry.querySelector('.has-litigation-friend');
+    const lfDetails = entry.querySelector('.litigation-friend-details');
+    checkbox.addEventListener('change', () => {
+        lfDetails.classList.toggle('hidden', !checkbox.checked);
+    });
+
+    const removeBtn = entry.querySelector('.remove-party-btn');
+    removeBtn.addEventListener('click', () => {
+        if (container.querySelectorAll('.party-entry').length > 2) {
+            entry.remove();
+            renumberParties();
+        } else {
+            showToast('At least two parties are required', 'error');
         }
+    });
+}
+
+function renumberParties() {
+    const entries = document.querySelectorAll('.party-entry');
+    entries.forEach((entry, index) => {
+        entry.querySelector('.party-number').textContent = `Party ${index + 1}`;
+    });
+}
+
+function collectParties() {
+    const entries = document.querySelectorAll('.party-entry');
+    const parties = [];
+
+    entries.forEach(entry => {
+        const name = entry.querySelector('.party-name').value.trim();
+        const designation = entry.querySelector('.party-designation').value;
+        const hasLF = entry.querySelector('.has-litigation-friend').checked;
+        const lfName = entry.querySelector('.litigation-friend-name').value.trim();
+        const lfRole = entry.querySelector('.litigation-friend-role').value;
+
+        if (name) {
+            parties.push({
+                name,
+                designation,
+                hasLitigationFriend: hasLF,
+                litigationFriendName: hasLF ? lfName : null,
+                litigationFriendRole: hasLF ? lfRole : null
+            });
+        }
+    });
+
+    return parties;
+}
+
+// ============================================
+// CASE DETAILS COLLECTION
+// ============================================
+
+function collectCaseDetails() {
+    const courtName = document.getElementById('courtName');
+    const caseNumber = document.getElementById('caseNumber');
+
+    if (!caseNumber.value.trim()) {
+        showToast('Please enter a case number', 'error');
+        caseNumber.focus();
+        return false;
     }
 
+    const parties = collectParties();
+    if (parties.length < 2) {
+        showToast('Please enter at least two parties', 'error');
+        return false;
+    }
+
+    AppState.parties = parties;
     AppState.caseDetails = {
-        court: document.getElementById('courtName').value,
-        caseNumber: document.getElementById('caseNumber').value.trim(),
+        court: courtName.value,
+        caseNumber: caseNumber.value.trim(),
         matterOf: document.getElementById('matterOf').value.trim(),
         inMatterPerson: document.getElementById('inMatterPerson').value.trim(),
-        party1Name: document.getElementById('party1Name').value.trim(),
-        party1Role: document.getElementById('party1Role').value,
-        party2Name: document.getElementById('party2Name').value.trim(),
-        party2Role: document.getElementById('party2Role').value
+        parties: parties,
+        proceedingType: AppState.proceedingType
     };
 
     return true;
 }
 
-// Show the appropriate document form
+// ============================================
+// DOCUMENT FORM
+// ============================================
+
 function showDocumentForm() {
     // Hide all forms
     document.querySelectorAll('.document-form').forEach(f => f.classList.add('hidden'));
@@ -133,7 +343,7 @@ function showDocumentForm() {
     }[AppState.documentType];
 
     if (formId) {
-        document.getElementById(formId).classList.remove('hidden');
+        document.getElementById(formId)?.classList.remove('hidden');
     }
 
     // Update step title
@@ -143,57 +353,430 @@ function showDocumentForm() {
         'position-statement': 'Position Statement Details',
         'draft-order': 'Draft Order Details'
     };
-    document.getElementById('step3Title').textContent = titles[AppState.documentType] || 'Document Content';
+    const titleEl = document.getElementById('step3Title');
+    if (titleEl) {
+        titleEl.textContent = titles[AppState.documentType] || 'Document Content';
+    }
 }
 
-// Collect document content from forms
+// ============================================
+// WRITING MODE TOGGLE
+// ============================================
+
+function initWritingModeToggle() {
+    const modeBtns = document.querySelectorAll('.writing-mode-toggle .mode-btn');
+    const structuredMode = document.getElementById('structuredMode');
+    const freeMode = document.getElementById('freeMode');
+
+    modeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const mode = btn.dataset.mode;
+            AppState.writingMode = mode;
+
+            if (structuredMode && freeMode) {
+                if (mode === 'structured') {
+                    structuredMode.classList.remove('hidden');
+                    freeMode.classList.add('hidden');
+                } else {
+                    structuredMode.classList.add('hidden');
+                    freeMode.classList.remove('hidden');
+                }
+            }
+        });
+    });
+}
+
+// ============================================
+// PARAGRAPH SYSTEM (Structured Mode)
+// ============================================
+
+function initParagraphSystem() {
+    document.getElementById('addParagraph')?.addEventListener('click', addParagraph);
+
+    // Add initial paragraph
+    setTimeout(() => {
+        if (AppState.paragraphs.length === 0) {
+            addParagraph();
+        }
+    }, 100);
+}
+
+function addParagraph(initialContent = '') {
+    const container = document.getElementById('paragraphsContainer');
+    if (!container) return;
+
+    AppState.paragraphCounter++;
+    const id = `para-${AppState.paragraphCounter}`;
+
+    AppState.paragraphs.push({ id, content: initialContent });
+
+    const card = document.createElement('div');
+    card.className = 'paragraph-card';
+    card.dataset.id = id;
+    card.draggable = true;
+
+    card.innerHTML = `
+        <div class="paragraph-header">
+            <span class="drag-handle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="9" cy="12" r="1"></circle>
+                    <circle cx="9" cy="5" r="1"></circle>
+                    <circle cx="9" cy="19" r="1"></circle>
+                    <circle cx="15" cy="12" r="1"></circle>
+                    <circle cx="15" cy="5" r="1"></circle>
+                    <circle cx="15" cy="19" r="1"></circle>
+                </svg>
+            </span>
+            <span class="paragraph-number">${AppState.paragraphs.length}.</span>
+            <button type="button" class="remove-para-btn" title="Remove paragraph">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <textarea class="paragraph-content" placeholder="Enter paragraph text...">${initialContent}</textarea>
+    `;
+
+    container.appendChild(card);
+
+    // Event listeners
+    const textarea = card.querySelector('.paragraph-content');
+    textarea.addEventListener('input', () => {
+        const para = AppState.paragraphs.find(p => p.id === id);
+        if (para) para.content = textarea.value;
+        autoResizeTextarea(textarea);
+    });
+
+    const removeBtn = card.querySelector('.remove-para-btn');
+    removeBtn.addEventListener('click', () => removeParagraph(id));
+
+    // Drag and drop
+    card.addEventListener('dragstart', handleDragStart);
+    card.addEventListener('dragend', handleDragEnd);
+    card.addEventListener('dragover', handleDragOver);
+    card.addEventListener('drop', handleDrop);
+
+    // Focus and auto-resize
+    textarea.focus();
+    autoResizeTextarea(textarea);
+}
+
+function removeParagraph(id) {
+    const index = AppState.paragraphs.findIndex(p => p.id === id);
+    if (index > -1) {
+        AppState.paragraphs.splice(index, 1);
+        const card = document.querySelector(`.paragraph-card[data-id="${id}"]`);
+        if (card) card.remove();
+        renumberParagraphs();
+    }
+}
+
+function renumberParagraphs() {
+    const cards = document.querySelectorAll('.paragraph-card');
+    cards.forEach((card, index) => {
+        card.querySelector('.paragraph-number').textContent = `${index + 1}.`;
+    });
+}
+
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+// Drag and drop handlers
+let draggedElement = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    draggedElement = null;
+    document.querySelectorAll('.paragraph-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    if (draggedElement !== this) {
+        this.classList.add('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+
+    if (draggedElement !== this) {
+        const container = document.getElementById('paragraphsContainer');
+        const allCards = [...container.querySelectorAll('.paragraph-card')];
+        const draggedIndex = allCards.indexOf(draggedElement);
+        const dropIndex = allCards.indexOf(this);
+
+        // Reorder DOM
+        if (draggedIndex < dropIndex) {
+            this.after(draggedElement);
+        } else {
+            this.before(draggedElement);
+        }
+
+        // Reorder state
+        const draggedPara = AppState.paragraphs.splice(draggedIndex, 1)[0];
+        AppState.paragraphs.splice(dropIndex, 0, draggedPara);
+
+        renumberParagraphs();
+    }
+}
+
+// ============================================
+// PHRASE SUGGESTIONS
+// ============================================
+
+function initPhraseSuggestions() {
+    document.querySelectorAll('.phrase-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const phrase = btn.dataset.phrase;
+            insertPhrase(phrase);
+        });
+    });
+}
+
+function insertPhrase(phrase) {
+    if (AppState.writingMode === 'structured') {
+        // In structured mode, add as new paragraph or append to active textarea
+        const activeTextarea = document.activeElement;
+        if (activeTextarea && activeTextarea.classList.contains('paragraph-content')) {
+            // Append to current paragraph
+            const cursorPos = activeTextarea.selectionStart;
+            const before = activeTextarea.value.substring(0, cursorPos);
+            const after = activeTextarea.value.substring(cursorPos);
+            activeTextarea.value = before + phrase + after;
+            activeTextarea.selectionStart = activeTextarea.selectionEnd = cursorPos + phrase.length;
+            activeTextarea.dispatchEvent(new Event('input'));
+            activeTextarea.focus();
+        } else {
+            // Add as new paragraph
+            addParagraph(phrase);
+        }
+    } else {
+        // Free mode - insert into wsBody
+        const textarea = document.getElementById('wsBody');
+        if (textarea) {
+            const cursorPos = textarea.selectionStart;
+            const before = textarea.value.substring(0, cursorPos);
+            const after = textarea.value.substring(cursorPos);
+            textarea.value = before + phrase + after;
+            textarea.selectionStart = textarea.selectionEnd = cursorPos + phrase.length;
+            textarea.focus();
+        }
+    }
+}
+
+// ============================================
+// EXHIBIT SYSTEM
+// ============================================
+
+function initExhibitSystem() {
+    document.getElementById('addExhibit')?.addEventListener('click', addExhibit);
+}
+
+function addExhibit() {
+    const container = document.getElementById('exhibitsContainer');
+    if (!container) return;
+
+    AppState.exhibitCounter++;
+    const id = `exhibit-${AppState.exhibitCounter}`;
+
+    const exhibitTypes = [
+        'Care and Support Plan',
+        'Mental Capacity Assessment',
+        'COP3 Assessment of Capacity',
+        'COP24 Witness Statement',
+        'Schedule of Restrictions',
+        'Best Interests Assessment',
+        'RTM Minutes',
+        'Medical Report',
+        'Social Work Assessment',
+        'Discharge Summary',
+        'Risk Assessment',
+        'Correspondence',
+        'Court Order',
+        'Other'
+    ];
+
+    AppState.exhibits.push({ id, type: exhibitTypes[0], customType: '', description: '' });
+
+    const item = document.createElement('div');
+    item.className = 'exhibit-item';
+    item.dataset.id = id;
+
+    const exhibitNum = AppState.exhibits.length;
+    const defaultMark = `${document.getElementById('witnessName')?.value?.split(' ').map(n => n[0]).join('') || 'XX'}-${exhibitNum}`;
+
+    item.innerHTML = `
+        <div class="exhibit-header">
+            <span class="exhibit-number">Exhibit ${exhibitNum}</span>
+            <button type="button" class="remove-exhibit-btn" title="Remove exhibit">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Document Type</label>
+                <select class="exhibit-type">
+                    ${exhibitTypes.map(t => `<option value="${t}">${t}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Exhibit Mark</label>
+                <input type="text" class="exhibit-mark" placeholder="e.g., JD-1" value="${defaultMark}">
+            </div>
+        </div>
+        <div class="form-group custom-type-field hidden">
+            <label>Custom Document Type</label>
+            <input type="text" class="exhibit-custom-type" placeholder="Describe the document">
+        </div>
+        <div class="form-group">
+            <label>Description (optional)</label>
+            <input type="text" class="exhibit-description" placeholder="e.g., dated 15 January 2026">
+        </div>
+    `;
+
+    container.appendChild(item);
+
+    // Event listeners
+    const typeSelect = item.querySelector('.exhibit-type');
+    const customField = item.querySelector('.custom-type-field');
+
+    typeSelect.addEventListener('change', () => {
+        customField.classList.toggle('hidden', typeSelect.value !== 'Other');
+        const exhibit = AppState.exhibits.find(e => e.id === id);
+        if (exhibit) exhibit.type = typeSelect.value;
+    });
+
+    item.querySelector('.exhibit-custom-type').addEventListener('input', (e) => {
+        const exhibit = AppState.exhibits.find(ex => ex.id === id);
+        if (exhibit) exhibit.customType = e.target.value;
+    });
+
+    item.querySelector('.exhibit-description').addEventListener('input', (e) => {
+        const exhibit = AppState.exhibits.find(ex => ex.id === id);
+        if (exhibit) exhibit.description = e.target.value;
+    });
+
+    item.querySelector('.exhibit-mark').addEventListener('input', (e) => {
+        const exhibit = AppState.exhibits.find(ex => ex.id === id);
+        if (exhibit) exhibit.mark = e.target.value;
+    });
+
+    item.querySelector('.remove-exhibit-btn').addEventListener('click', () => {
+        removeExhibit(id);
+    });
+}
+
+function removeExhibit(id) {
+    const index = AppState.exhibits.findIndex(e => e.id === id);
+    if (index > -1) {
+        AppState.exhibits.splice(index, 1);
+        const item = document.querySelector(`.exhibit-item[data-id="${id}"]`);
+        if (item) item.remove();
+        renumberExhibits();
+    }
+}
+
+function renumberExhibits() {
+    const items = document.querySelectorAll('.exhibit-item');
+    items.forEach((item, index) => {
+        item.querySelector('.exhibit-number').textContent = `Exhibit ${index + 1}`;
+    });
+}
+
+function collectExhibits() {
+    const exhibits = [];
+    document.querySelectorAll('.exhibit-item').forEach(item => {
+        const type = item.querySelector('.exhibit-type').value;
+        const customType = item.querySelector('.exhibit-custom-type').value;
+        const description = item.querySelector('.exhibit-description').value;
+        const mark = item.querySelector('.exhibit-mark').value;
+
+        exhibits.push({
+            type: type === 'Other' ? customType : type,
+            description,
+            mark
+        });
+    });
+    return exhibits;
+}
+
+// ============================================
+// DOCUMENT CONTENT COLLECTION
+// ============================================
+
 function collectDocumentContent() {
     switch (AppState.documentType) {
         case 'witness-statement':
+            const body = AppState.writingMode === 'structured'
+                ? AppState.paragraphs.map(p => p.content).filter(c => c.trim())
+                : document.getElementById('wsBody')?.value.split('\n\n').filter(p => p.trim()) || [];
+
             AppState.documentContent = {
-                witnessName: document.getElementById('witnessName').value.trim(),
-                witnessRole: document.getElementById('witnessRole').value.trim(),
-                witnessAddress: document.getElementById('witnessAddress').value.trim(),
-                statementNumber: document.getElementById('statementNumber').value,
-                exhibitMark: document.getElementById('exhibitMark').value.trim(),
-                introduction: document.getElementById('wsIntro').value.trim(),
-                body: document.getElementById('wsBody').value.trim()
+                witnessName: document.getElementById('witnessName')?.value.trim() || '',
+                witnessRole: document.getElementById('witnessRole')?.value.trim() || '',
+                witnessAddress: document.getElementById('witnessAddress')?.value.trim() || '',
+                statementNumber: document.getElementById('statementNumber')?.value || 'First',
+                exhibitMark: document.getElementById('exhibitMark')?.value.trim() || '',
+                introduction: document.getElementById('wsIntro')?.value.trim() || '',
+                paragraphs: body,
+                exhibits: collectExhibits()
             };
             break;
 
         case 'skeleton-argument':
             AppState.documentContent = {
-                hearingDate: document.getElementById('hearingDate').value,
-                hearingType: document.getElementById('hearingType').value.trim(),
-                timeEstimate: document.getElementById('timeEstimate').value.trim(),
-                introduction: document.getElementById('skIntro').value.trim(),
-                issues: document.getElementById('skIssues').value.trim(),
-                law: document.getElementById('skLaw').value.trim(),
-                application: document.getElementById('skApplication').value.trim(),
-                relief: document.getElementById('skRelief').value.trim(),
-                authorities: document.getElementById('skAuthorities').value.trim()
+                hearingDate: document.getElementById('hearingDate')?.value || '',
+                hearingType: document.getElementById('hearingType')?.value.trim() || '',
+                timeEstimate: document.getElementById('timeEstimate')?.value.trim() || '',
+                introduction: document.getElementById('skIntro')?.value.trim() || '',
+                issues: document.getElementById('skIssues')?.value.trim() || '',
+                law: document.getElementById('skLaw')?.value.trim() || '',
+                application: document.getElementById('skApplication')?.value.trim() || '',
+                relief: document.getElementById('skRelief')?.value.trim() || '',
+                authorities: document.getElementById('skAuthorities')?.value.trim() || ''
             };
             break;
 
         case 'position-statement':
             AppState.documentContent = {
-                hearingDate: document.getElementById('psHearingDate').value,
-                onBehalfOf: document.getElementById('psOnBehalfOf').value.trim(),
-                introduction: document.getElementById('psIntro').value.trim(),
-                currentPosition: document.getElementById('psCurrentPosition').value.trim(),
-                ordersSought: document.getElementById('psOrders').value.trim(),
-                outstanding: document.getElementById('psOutstanding').value.trim()
+                hearingDate: document.getElementById('psHearingDate')?.value || '',
+                onBehalfOf: document.getElementById('psOnBehalfOf')?.value.trim() || '',
+                introduction: document.getElementById('psIntro')?.value.trim() || '',
+                currentPosition: document.getElementById('psCurrentPosition')?.value.trim() || '',
+                ordersSought: document.getElementById('psOrders')?.value.trim() || '',
+                outstanding: document.getElementById('psOutstanding')?.value.trim() || ''
             };
             break;
 
         case 'draft-order':
             AppState.documentContent = {
-                orderType: document.getElementById('orderType').value,
-                judgeName: document.getElementById('judgeName').value.trim(),
-                recitals: document.getElementById('recitals').value.trim(),
-                provisions: document.getElementById('orderProvisions').value.trim(),
-                serviceProvisions: document.getElementById('serviceProvisions').value.trim(),
-                costsProvisions: document.getElementById('costsProvisions').value.trim()
+                orderType: document.getElementById('orderType')?.value || 'ORDER',
+                judgeName: document.getElementById('judgeName')?.value.trim() || '',
+                recitals: document.getElementById('recitals')?.value.trim() || '',
+                provisions: document.getElementById('orderProvisions')?.value.trim() || '',
+                serviceProvisions: document.getElementById('serviceProvisions')?.value.trim() || '',
+                costsProvisions: document.getElementById('costsProvisions')?.value.trim() || ''
             };
             break;
     }
@@ -201,7 +784,10 @@ function collectDocumentContent() {
     return true;
 }
 
-// Set default date
+// ============================================
+// PREVIEW RENDERING
+// ============================================
+
 function setDefaultDate() {
     const dateInput = document.getElementById('documentDate');
     if (dateInput && !dateInput.value) {
@@ -209,48 +795,83 @@ function setDefaultDate() {
     }
 }
 
-// Render preview
 function renderPreview() {
     const preview = document.getElementById('previewContent');
+    if (!preview) return;
+
     const cd = AppState.caseDetails;
     const dc = AppState.documentContent;
+    const parties = cd.parties || [];
+    const separator = cd.proceedingType === 'adversarial' ? '- v -' : '- and -';
 
-    let html = `
-        <div class="doc-header">
-            <div class="case-no">Case No: ${escapeHtml(cd.caseNumber)}</div>
-            <div class="court">${escapeHtml(cd.court).replace(/\n/g, '<br>')}</div>
-    `;
+    let html = '<div class="doc-header">';
 
+    // Case Number (right aligned)
+    html += `<div class="case-no">Case No: ${escapeHtml(cd.caseNumber)}</div>`;
+
+    // Court Name (left aligned)
+    if (cd.court) {
+        const courtLines = cd.court.split('\n');
+        courtLines.forEach(line => {
+            html += `<div class="court-line">${escapeHtml(line)}</div>`;
+        });
+    }
+
+    // In the Matter Of (statute)
     if (cd.matterOf) {
         html += `<div class="matter">IN THE MATTER OF ${escapeHtml(cd.matterOf)}</div>`;
     }
 
+    // In the Matter Of (person/property)
     if (cd.inMatterPerson) {
-        html += `<div class="matter">IN THE MATTER OF: ${escapeHtml(cd.inMatterPerson)}</div>`;
+        html += `<div class="matter">IN THE MATTER OF:</div>`;
+        html += `<div class="matter-person">${escapeHtml(cd.inMatterPerson)}</div>`;
     }
 
-    if (cd.party1Name && cd.party2Name) {
-        html += `
-            <div class="between"><strong>B E T W E E N:</strong></div>
-            <div class="party">${escapeHtml(cd.party1Name)}</div>
-            <div class="designation">${escapeHtml(cd.party1Role)}</div>
-            <div class="and">- and -</div>
-            <div class="party">${escapeHtml(cd.party2Name)}</div>
-            <div class="designation">${escapeHtml(cd.party2Role)}</div>
-        `;
+    // Parties
+    if (parties.length >= 2) {
+        html += `<div class="between">B E T W E E N:</div>`;
+
+        // First party
+        html += `<div class="party">${escapeHtml(parties[0].name).toUpperCase()}</div>`;
+        if (parties[0].hasLitigationFriend && parties[0].litigationFriendName) {
+            html += `<div class="lf-details">(By ${parties[0].litigationFriendRole === 'Accredited Legal Representative' ? 'her Accredited Legal Representative' : 'his/her litigation friend'} ${escapeHtml(parties[0].litigationFriendName)})</div>`;
+        }
+        html += `<div class="designation">${escapeHtml(parties[0].designation)}</div>`;
+
+        html += `<div class="separator">${separator}</div>`;
+
+        // Second party
+        html += `<div class="party">${escapeHtml(parties[1].name).toUpperCase()}</div>`;
+        if (parties[1].hasLitigationFriend && parties[1].litigationFriendName) {
+            html += `<div class="lf-details">(By ${parties[1].litigationFriendRole === 'Accredited Legal Representative' ? 'her Accredited Legal Representative' : 'his/her litigation friend'} ${escapeHtml(parties[1].litigationFriendName)})</div>`;
+        }
+        html += `<div class="designation">${escapeHtml(parties[1].designation)}</div>`;
+
+        // Additional parties
+        for (let i = 2; i < parties.length; i++) {
+            html += `<div class="separator">${separator}</div>`;
+            html += `<div class="party">${escapeHtml(parties[i].name).toUpperCase()}</div>`;
+            if (parties[i].hasLitigationFriend && parties[i].litigationFriendName) {
+                html += `<div class="lf-details">(By ${parties[i].litigationFriendRole === 'Accredited Legal Representative' ? 'her Accredited Legal Representative' : 'his/her litigation friend'} ${escapeHtml(parties[i].litigationFriendName)})</div>`;
+            }
+            html += `<div class="designation">${escapeHtml(parties[i].designation)}</div>`;
+        }
     }
 
-    html += `<hr>`;
+    html += `<hr class="header-line">`;
 
     // Document title
     const docTitles = {
         'witness-statement': `WITNESS STATEMENT OF ${dc.witnessName?.toUpperCase() || 'WITNESS'}`,
         'skeleton-argument': 'SKELETON ARGUMENT',
-        'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${cd.party1Role?.toUpperCase() || 'APPLICANT'}`,
+        'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${parties[0]?.designation?.toUpperCase() || 'APPLICANT'}`,
         'draft-order': dc.orderType || 'ORDER'
     };
 
-    html += `<div class="doc-title">${docTitles[AppState.documentType]}</div><hr></div>`;
+    html += `<div class="doc-title">${docTitles[AppState.documentType]}</div>`;
+    html += `<hr class="header-line">`;
+    html += `</div>`; // End doc-header
 
     // Document body
     html += `<div class="doc-body">`;
@@ -278,22 +899,45 @@ function renderPreview() {
 function renderWitnessStatementBody(dc) {
     let html = '';
 
+    // Statement details box
+    html += `<div class="ws-details">`;
+    html += `<p><strong>${dc.statementNumber}</strong> witness statement of <strong>${escapeHtml(dc.witnessName)}</strong></p>`;
+    if (dc.exhibitMark) {
+        html += `<p>Exhibit: ${escapeHtml(dc.exhibitMark)}</p>`;
+    }
+    html += `</div>`;
+
+    // Introduction
     if (dc.introduction) {
         html += `<p>${escapeHtml(dc.introduction)}</p>`;
     }
 
-    if (dc.body) {
-        const paragraphs = dc.body.split('\n\n');
-        paragraphs.forEach(p => {
-            if (p.trim()) {
-                html += `<p class="numbered">${escapeHtml(p.trim())}</p>`;
-            }
+    // Paragraphs
+    if (dc.paragraphs && dc.paragraphs.length > 0) {
+        dc.paragraphs.forEach((p, i) => {
+            html += `<p class="numbered"><span class="para-num">${i + 1}.</span> ${escapeHtml(p)}</p>`;
         });
     }
 
+    // Exhibits section
+    if (dc.exhibits && dc.exhibits.length > 0) {
+        html += `<p class="section-heading"><strong>EXHIBITS</strong></p>`;
+        dc.exhibits.forEach(ex => {
+            html += `<p class="exhibit-line">${escapeHtml(ex.mark)}: ${escapeHtml(ex.type)}${ex.description ? ' (' + escapeHtml(ex.description) + ')' : ''}</p>`;
+        });
+    }
+
+    // Statement of Truth
     html += `
-        <p><strong>STATEMENT OF TRUTH</strong></p>
-        <p>I believe that the facts stated in this witness statement are true. I understand that proceedings for contempt of court may be brought against anyone who makes, or causes to be made, a false statement in a document verified by a statement of truth without an honest belief in its truth.</p>
+        <div class="statement-of-truth">
+            <p><strong>STATEMENT OF TRUTH</strong></p>
+            <p>I believe that the facts stated in this witness statement are true. I understand that proceedings for contempt of court may be brought against anyone who makes, or causes to be made, a false statement in a document verified by a statement of truth without an honest belief in its truth.</p>
+            <div class="signature-block">
+                <p>Signed: ____________________________</p>
+                <p>Name: ${escapeHtml(dc.witnessName)}</p>
+                <p>Date: ____________________________</p>
+            </div>
+        </div>
     `;
 
     return html;
@@ -302,32 +946,28 @@ function renderWitnessStatementBody(dc) {
 function renderSkeletonBody(dc) {
     let html = '';
 
-    if (dc.introduction) {
-        html += `<p><strong>Introduction</strong></p><p>${escapeHtml(dc.introduction)}</p>`;
-    }
+    const sections = [
+        { title: 'Introduction', content: dc.introduction },
+        { title: 'Issues', content: dc.issues },
+        { title: 'Legal Framework', content: dc.law },
+        { title: 'Application of Law to Facts', content: dc.application },
+        { title: 'Relief Sought', content: dc.relief }
+    ];
 
-    if (dc.issues) {
-        html += `<p><strong>Issues</strong></p><p>${escapeHtml(dc.issues).replace(/\n/g, '<br>')}</p>`;
-    }
-
-    if (dc.law) {
-        html += `<p><strong>Legal Framework</strong></p><p>${escapeHtml(dc.law).replace(/\n/g, '<br>')}</p>`;
-    }
-
-    if (dc.application) {
-        html += `<p><strong>Application</strong></p><p>${escapeHtml(dc.application).replace(/\n/g, '<br>')}</p>`;
-    }
-
-    if (dc.relief) {
-        html += `<p><strong>Relief Sought</strong></p><p>${escapeHtml(dc.relief).replace(/\n/g, '<br>')}</p>`;
-    }
+    sections.forEach(section => {
+        if (section.content) {
+            html += `<p class="section-heading"><strong>${section.title}</strong></p>`;
+            html += `<p>${escapeHtml(section.content).replace(/\n/g, '<br>')}</p>`;
+        }
+    });
 
     if (dc.timeEstimate) {
         html += `<p><strong>Time Estimate:</strong> ${escapeHtml(dc.timeEstimate)}</p>`;
     }
 
     if (dc.authorities) {
-        html += `<p><strong>Authorities</strong></p><p>${escapeHtml(dc.authorities).replace(/\n/g, '<br>')}</p>`;
+        html += `<p class="section-heading"><strong>Authorities</strong></p>`;
+        html += `<p>${escapeHtml(dc.authorities).replace(/\n/g, '<br>')}</p>`;
     }
 
     return html;
@@ -335,33 +975,34 @@ function renderSkeletonBody(dc) {
 
 function renderPositionStatementBody(dc) {
     let html = '';
+    let paraNum = 1;
 
     if (dc.introduction) {
-        const paragraphs = dc.introduction.split('\n\n');
-        paragraphs.forEach(p => {
+        const paras = dc.introduction.split('\n\n');
+        paras.forEach(p => {
             if (p.trim()) {
-                html += `<p class="numbered">${escapeHtml(p.trim())}</p>`;
+                html += `<p class="numbered"><span class="para-num">${paraNum++}.</span> ${escapeHtml(p.trim())}</p>`;
             }
         });
     }
 
     if (dc.currentPosition) {
-        html += `<p><strong>Current Position</strong></p>`;
-        const paragraphs = dc.currentPosition.split('\n\n');
-        paragraphs.forEach(p => {
+        html += `<p class="section-heading"><strong>CURRENT POSITION</strong></p>`;
+        const paras = dc.currentPosition.split('\n\n');
+        paras.forEach(p => {
             if (p.trim()) {
-                html += `<p class="numbered">${escapeHtml(p.trim())}</p>`;
+                html += `<p class="numbered"><span class="para-num">${paraNum++}.</span> ${escapeHtml(p.trim())}</p>`;
             }
         });
     }
 
     if (dc.ordersSought) {
-        html += `<p><strong>Orders Sought</strong></p>`;
+        html += `<p class="section-heading"><strong>ORDERS SOUGHT</strong></p>`;
         html += `<p>${escapeHtml(dc.ordersSought).replace(/\n/g, '<br>')}</p>`;
     }
 
     if (dc.outstanding) {
-        html += `<p><strong>Outstanding Issues</strong></p>`;
+        html += `<p class="section-heading"><strong>OUTSTANDING ISSUES</strong></p>`;
         html += `<p>${escapeHtml(dc.outstanding).replace(/\n/g, '<br>')}</p>`;
     }
 
@@ -370,6 +1011,10 @@ function renderPositionStatementBody(dc) {
 
 function renderDraftOrderBody(dc) {
     let html = '';
+
+    if (dc.judgeName) {
+        html += `<p><strong>BEFORE:</strong> ${escapeHtml(dc.judgeName)}</p>`;
+    }
 
     if (dc.recitals) {
         const recitals = dc.recitals.split('\n');
@@ -380,12 +1025,13 @@ function renderDraftOrderBody(dc) {
         });
     }
 
+    html += `<p><strong>IT IS ORDERED THAT:</strong></p>`;
+
     if (dc.provisions) {
-        html += `<p><strong>IT IS ORDERED THAT:</strong></p>`;
         const provisions = dc.provisions.split('\n\n');
-        provisions.forEach(p => {
+        provisions.forEach((p, i) => {
             if (p.trim()) {
-                html += `<p class="numbered">${escapeHtml(p.trim())}</p>`;
+                html += `<p class="numbered"><span class="para-num">${i + 1}.</span> ${escapeHtml(p.trim())}</p>`;
             }
         });
     }
@@ -408,7 +1054,19 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Generate Word Document
+// ============================================
+// DOWNLOAD BUTTONS
+// ============================================
+
+function initDownloadButtons() {
+    document.getElementById('downloadWord')?.addEventListener('click', downloadWord);
+    document.getElementById('downloadPDF')?.addEventListener('click', downloadPDF);
+}
+
+// ============================================
+// WORD DOCUMENT GENERATION
+// ============================================
+
 async function downloadWord() {
     const btn = document.getElementById('downloadWord');
     btn.disabled = true;
@@ -439,31 +1097,35 @@ async function downloadWord() {
 function createWordDocument() {
     const cd = AppState.caseDetails;
     const dc = AppState.documentContent;
-    const preparedBy = document.getElementById('preparedBy').value || 'Sarah Okafor, Barrister';
-    const docDate = formatDate(document.getElementById('documentDate').value);
+    const parties = cd.parties || [];
+    const separator = cd.proceedingType === 'adversarial' ? '- v -' : '- and -';
+    const preparedBy = document.getElementById('preparedBy')?.value || 'Sarah Okafor, Barrister';
+    const docDate = formatDate(document.getElementById('documentDate')?.value);
 
     const children = [];
 
     // Case Number (right aligned)
     children.push(new Paragraph({
-        children: [new TextRun({ text: `Case No: ${cd.caseNumber}`, font: 'Century Gothic', size: 24 })],
+        children: [new TextRun({ text: `Case No: ${cd.caseNumber}`, font: 'Century Gothic', size: 24, bold: true })],
         alignment: AlignmentType.RIGHT,
         spacing: { after: 200 }
     }));
 
     // Court Name (left aligned)
-    const courtLines = cd.court.split('\n');
-    courtLines.forEach(line => {
-        children.push(new Paragraph({
-            children: [new TextRun({ text: line, font: 'Century Gothic', size: 24, bold: true })],
-            alignment: AlignmentType.LEFT
-        }));
-    });
+    if (cd.court) {
+        const courtLines = cd.court.split('\n');
+        courtLines.forEach(line => {
+            children.push(new Paragraph({
+                children: [new TextRun({ text: line, font: 'Century Gothic', size: 24, bold: true })],
+                alignment: AlignmentType.LEFT
+            }));
+        });
+    }
 
     // In the Matter Of (statute)
     if (cd.matterOf) {
         children.push(new Paragraph({
-            children: [new TextRun({ text: `IN THE MATTER OF ${cd.matterOf}`, font: 'Century Gothic', size: 24 })],
+            children: [new TextRun({ text: `IN THE MATTER OF ${cd.matterOf}`, font: 'Century Gothic', size: 24, bold: true })],
             alignment: AlignmentType.LEFT,
             spacing: { before: 200 }
         }));
@@ -472,51 +1134,58 @@ function createWordDocument() {
     // In the Matter Of (person/property)
     if (cd.inMatterPerson) {
         children.push(new Paragraph({
-            children: [new TextRun({ text: 'IN THE MATTER OF:', font: 'Century Gothic', size: 24 })],
+            children: [new TextRun({ text: 'IN THE MATTER OF:', font: 'Century Gothic', size: 24, bold: true })],
             alignment: AlignmentType.LEFT,
             spacing: { before: 200 }
         }));
         children.push(new Paragraph({
-            children: [new TextRun({ text: cd.inMatterPerson, font: 'Century Gothic', size: 24 })],
+            children: [new TextRun({ text: cd.inMatterPerson, font: 'Century Gothic', size: 24, bold: true })],
             alignment: AlignmentType.CENTER
         }));
     }
 
     // Parties
-    if (cd.party1Name && cd.party2Name) {
+    if (parties.length >= 2) {
         children.push(new Paragraph({
             children: [new TextRun({ text: 'B E T W E E N:', font: 'Century Gothic', size: 24, bold: true })],
             alignment: AlignmentType.LEFT,
             spacing: { before: 400 }
         }));
 
-        children.push(new Paragraph({
-            children: [new TextRun({ text: cd.party1Name, font: 'Century Gothic', size: 24 })],
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 200 }
-        }));
+        // Add each party
+        parties.forEach((party, index) => {
+            if (index > 0) {
+                children.push(new Paragraph({
+                    children: [new TextRun({ text: separator, font: 'Century Gothic', size: 24 })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 200 }
+                }));
+            }
 
-        children.push(new Paragraph({
-            children: [new TextRun({ text: cd.party1Role, font: 'Century Gothic', size: 24, italics: true })],
-            alignment: AlignmentType.RIGHT
-        }));
+            // Party name (centred, uppercase)
+            children.push(new Paragraph({
+                children: [new TextRun({ text: party.name.toUpperCase(), font: 'Century Gothic', size: 24, bold: true })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 200 }
+            }));
 
-        children.push(new Paragraph({
-            children: [new TextRun({ text: '- and -', font: 'Century Gothic', size: 24 })],
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 200 }
-        }));
+            // Litigation friend if applicable
+            if (party.hasLitigationFriend && party.litigationFriendName) {
+                const lfText = party.litigationFriendRole === 'Accredited Legal Representative'
+                    ? `(By her Accredited Legal Representative ${party.litigationFriendName})`
+                    : `(By his/her litigation friend ${party.litigationFriendName})`;
+                children.push(new Paragraph({
+                    children: [new TextRun({ text: lfText, font: 'Century Gothic', size: 24 })],
+                    alignment: AlignmentType.CENTER
+                }));
+            }
 
-        children.push(new Paragraph({
-            children: [new TextRun({ text: cd.party2Name, font: 'Century Gothic', size: 24 })],
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 200 }
-        }));
-
-        children.push(new Paragraph({
-            children: [new TextRun({ text: cd.party2Role, font: 'Century Gothic', size: 24, italics: true })],
-            alignment: AlignmentType.RIGHT
-        }));
+            // Designation (right aligned)
+            children.push(new Paragraph({
+                children: [new TextRun({ text: party.designation, font: 'Century Gothic', size: 24, italics: true })],
+                alignment: AlignmentType.RIGHT
+            }));
+        });
     }
 
     // Horizontal line
@@ -526,7 +1195,7 @@ function createWordDocument() {
     const docTitles = {
         'witness-statement': `WITNESS STATEMENT OF ${dc.witnessName?.toUpperCase() || 'WITNESS'}`,
         'skeleton-argument': 'SKELETON ARGUMENT',
-        'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${cd.party1Role?.toUpperCase() || 'APPLICANT'}`,
+        'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${parties[0]?.designation?.toUpperCase() || 'APPLICANT'}`,
         'draft-order': dc.orderType || 'ORDER'
     };
 
@@ -539,7 +1208,7 @@ function createWordDocument() {
     // Horizontal line
     children.push(createHorizontalLine());
 
-    // Document body
+    // Document body based on type
     switch (AppState.documentType) {
         case 'witness-statement':
             addWitnessStatementContent(children, dc);
@@ -624,17 +1293,30 @@ function addWitnessStatementContent(children, dc) {
         }));
     }
 
-    // Body paragraphs
-    if (dc.body) {
-        const paragraphs = dc.body.split('\n\n');
-        paragraphs.forEach(p => {
-            if (p.trim()) {
-                children.push(new Paragraph({
-                    children: [new TextRun({ text: p.trim(), font: 'Century Gothic', size: 24 })],
-                    indent: { left: 720, hanging: 720 },
-                    spacing: { after: 200, line: 360 }
-                }));
-            }
+    // Numbered paragraphs
+    if (dc.paragraphs && dc.paragraphs.length > 0) {
+        dc.paragraphs.forEach((p, i) => {
+            children.push(new Paragraph({
+                children: [new TextRun({ text: `${i + 1}.\t${p}`, font: 'Century Gothic', size: 24 })],
+                indent: { left: 720, hanging: 720 },
+                spacing: { after: 200, line: 360 }
+            }));
+        });
+    }
+
+    // Exhibits
+    if (dc.exhibits && dc.exhibits.length > 0) {
+        children.push(new Paragraph({
+            children: [new TextRun({ text: 'EXHIBITS', font: 'Century Gothic', size: 24, bold: true })],
+            spacing: { before: 400, after: 200 }
+        }));
+
+        dc.exhibits.forEach(ex => {
+            const exText = `${ex.mark}: ${ex.type}${ex.description ? ' (' + ex.description + ')' : ''}`;
+            children.push(new Paragraph({
+                children: [new TextRun({ text: exText, font: 'Century Gothic', size: 24 })],
+                spacing: { after: 120 }
+            }));
         });
     }
 
@@ -725,12 +1407,14 @@ function addSkeletonContent(children, dc) {
 }
 
 function addPositionStatementContent(children, dc) {
+    let paraNum = 1;
+
     if (dc.introduction) {
         const paragraphs = dc.introduction.split('\n\n');
         paragraphs.forEach(p => {
             if (p.trim()) {
                 children.push(new Paragraph({
-                    children: [new TextRun({ text: p.trim(), font: 'Century Gothic', size: 24 })],
+                    children: [new TextRun({ text: `${paraNum++}.\t${p.trim()}`, font: 'Century Gothic', size: 24 })],
                     indent: { left: 720, hanging: 720 },
                     spacing: { after: 200, line: 360 }
                 }));
@@ -740,7 +1424,7 @@ function addPositionStatementContent(children, dc) {
 
     if (dc.currentPosition) {
         children.push(new Paragraph({
-            children: [new TextRun({ text: 'Current Position', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
+            children: [new TextRun({ text: 'CURRENT POSITION', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
             spacing: { before: 400, after: 200 }
         }));
 
@@ -748,7 +1432,7 @@ function addPositionStatementContent(children, dc) {
         paragraphs.forEach(p => {
             if (p.trim()) {
                 children.push(new Paragraph({
-                    children: [new TextRun({ text: p.trim(), font: 'Century Gothic', size: 24 })],
+                    children: [new TextRun({ text: `${paraNum++}.\t${p.trim()}`, font: 'Century Gothic', size: 24 })],
                     indent: { left: 720, hanging: 720 },
                     spacing: { after: 200, line: 360 }
                 }));
@@ -758,15 +1442,15 @@ function addPositionStatementContent(children, dc) {
 
     if (dc.ordersSought) {
         children.push(new Paragraph({
-            children: [new TextRun({ text: 'Orders Sought', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
+            children: [new TextRun({ text: 'ORDERS SOUGHT', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
             spacing: { before: 400, after: 200 }
         }));
 
-        const paragraphs = dc.ordersSought.split('\n');
-        paragraphs.forEach(p => {
-            if (p.trim()) {
+        const lines = dc.ordersSought.split('\n');
+        lines.forEach(l => {
+            if (l.trim()) {
                 children.push(new Paragraph({
-                    children: [new TextRun({ text: p.trim(), font: 'Century Gothic', size: 24 })],
+                    children: [new TextRun({ text: l.trim(), font: 'Century Gothic', size: 24 })],
                     spacing: { after: 120, line: 360 }
                 }));
             }
@@ -775,7 +1459,7 @@ function addPositionStatementContent(children, dc) {
 
     if (dc.outstanding) {
         children.push(new Paragraph({
-            children: [new TextRun({ text: 'Outstanding Issues', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
+            children: [new TextRun({ text: 'OUTSTANDING ISSUES', font: 'Century Gothic', size: 24, bold: true, underline: {} })],
             spacing: { before: 400, after: 200 }
         }));
 
@@ -787,6 +1471,16 @@ function addPositionStatementContent(children, dc) {
 }
 
 function addDraftOrderContent(children, dc) {
+    if (dc.judgeName) {
+        children.push(new Paragraph({
+            children: [
+                new TextRun({ text: 'BEFORE: ', font: 'Century Gothic', size: 24, bold: true }),
+                new TextRun({ text: dc.judgeName, font: 'Century Gothic', size: 24 })
+            ],
+            spacing: { before: 400, after: 200 }
+        }));
+    }
+
     // Recitals
     if (dc.recitals) {
         const recitals = dc.recitals.split('\n');
@@ -809,10 +1503,10 @@ function addDraftOrderContent(children, dc) {
     // Provisions
     if (dc.provisions) {
         const provisions = dc.provisions.split('\n\n');
-        provisions.forEach(p => {
+        provisions.forEach((p, i) => {
             if (p.trim()) {
                 children.push(new Paragraph({
-                    children: [new TextRun({ text: p.trim(), font: 'Century Gothic', size: 24 })],
+                    children: [new TextRun({ text: `${i + 1}.\t${p.trim()}`, font: 'Century Gothic', size: 24 })],
                     indent: { left: 720, hanging: 720 },
                     spacing: { after: 200, line: 360 }
                 }));
@@ -837,7 +1531,10 @@ function addDraftOrderContent(children, dc) {
     }
 }
 
-// Generate PDF Document
+// ============================================
+// PDF DOCUMENT GENERATION
+// ============================================
+
 async function downloadPDF() {
     const btn = document.getElementById('downloadPDF');
     btn.disabled = true;
@@ -853,8 +1550,10 @@ async function downloadPDF() {
 
         const cd = AppState.caseDetails;
         const dc = AppState.documentContent;
-        const preparedBy = document.getElementById('preparedBy').value || 'Sarah Okafor, Barrister';
-        const docDate = formatDate(document.getElementById('documentDate').value);
+        const parties = cd.parties || [];
+        const separator = cd.proceedingType === 'adversarial' ? '- v -' : '- and -';
+        const preparedBy = document.getElementById('preparedBy')?.value || 'Sarah Okafor, Barrister';
+        const docDate = formatDate(document.getElementById('documentDate')?.value);
 
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 25;
@@ -907,38 +1606,52 @@ async function downloadPDF() {
         }
 
         // Case Number
-        addText(`Case No: ${cd.caseNumber}`, margin, { align: 'right' });
+        addText(`Case No: ${cd.caseNumber}`, margin, { align: 'right', bold: true });
         y += 2;
 
         // Court Name
-        const courtLines = cd.court.split('\n');
-        courtLines.forEach(line => {
-            addText(line, margin, { bold: true });
-        });
+        if (cd.court) {
+            const courtLines = cd.court.split('\n');
+            courtLines.forEach(line => {
+                addText(line, margin, { bold: true });
+            });
+        }
         y += 4;
 
         // Matter Of
         if (cd.matterOf) {
-            addText(`IN THE MATTER OF ${cd.matterOf}`, margin);
+            addText(`IN THE MATTER OF ${cd.matterOf}`, margin, { bold: true });
         }
 
         if (cd.inMatterPerson) {
-            addText('IN THE MATTER OF:', margin);
-            addText(cd.inMatterPerson, margin, { align: 'center' });
+            addText('IN THE MATTER OF:', margin, { bold: true });
+            addText(cd.inMatterPerson, margin, { align: 'center', bold: true });
         }
         y += 4;
 
         // Parties
-        if (cd.party1Name && cd.party2Name) {
+        if (parties.length >= 2) {
             addText('B E T W E E N:', margin, { bold: true });
             y += 2;
-            addText(cd.party1Name, margin, { align: 'center' });
-            addText(cd.party1Role, margin, { align: 'right' });
-            y += 2;
-            addText('- and -', margin, { align: 'center' });
-            y += 2;
-            addText(cd.party2Name, margin, { align: 'center' });
-            addText(cd.party2Role, margin, { align: 'right' });
+
+            parties.forEach((party, index) => {
+                if (index > 0) {
+                    addText(separator, margin, { align: 'center' });
+                    y += 2;
+                }
+
+                addText(party.name.toUpperCase(), margin, { align: 'center', bold: true });
+
+                if (party.hasLitigationFriend && party.litigationFriendName) {
+                    const lfText = party.litigationFriendRole === 'Accredited Legal Representative'
+                        ? `(By her Accredited Legal Representative ${party.litigationFriendName})`
+                        : `(By his/her litigation friend ${party.litigationFriendName})`;
+                    addText(lfText, margin, { align: 'center' });
+                }
+
+                addText(party.designation, margin, { align: 'right' });
+                y += 2;
+            });
         }
         y += 2;
 
@@ -951,7 +1664,7 @@ async function downloadPDF() {
         const docTitles = {
             'witness-statement': `WITNESS STATEMENT OF ${dc.witnessName?.toUpperCase() || 'WITNESS'}`,
             'skeleton-argument': 'SKELETON ARGUMENT',
-            'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${cd.party1Role?.toUpperCase() || 'APPLICANT'}`,
+            'position-statement': `POSITION STATEMENT ON BEHALF OF THE ${parties[0]?.designation?.toUpperCase() || 'APPLICANT'}`,
             'draft-order': dc.orderType || 'ORDER'
         };
 
@@ -1004,6 +1717,8 @@ async function downloadPDF() {
 }
 
 function addPDFWitnessStatement(doc, dc, margin, maxWidth, addText, addWrappedText, checkPageBreak) {
+    let y = doc.internal.pageSize.getHeight() - 250; // Get approximate y position
+
     if (dc.statementNumber) {
         addWrappedText(`${dc.statementNumber} witness statement of ${dc.witnessName}`, margin, { bold: true });
     }
@@ -1017,9 +1732,21 @@ function addPDFWitnessStatement(doc, dc, margin, maxWidth, addText, addWrappedTe
         addWrappedText(dc.introduction, margin);
     }
 
-    if (dc.body) {
+    // Numbered paragraphs
+    if (dc.paragraphs && dc.paragraphs.length > 0) {
+        dc.paragraphs.forEach((p, i) => {
+            checkPageBreak();
+            addWrappedText(`${i + 1}. ${p}`, margin);
+        });
+    }
+
+    // Exhibits
+    if (dc.exhibits && dc.exhibits.length > 0) {
         checkPageBreak();
-        addWrappedText(dc.body, margin);
+        addWrappedText('EXHIBITS', margin, { bold: true });
+        dc.exhibits.forEach(ex => {
+            addWrappedText(`${ex.mark}: ${ex.type}${ex.description ? ' (' + ex.description + ')' : ''}`, margin);
+        });
     }
 
     checkPageBreak();
@@ -1057,30 +1784,47 @@ function addPDFSkeleton(doc, dc, margin, maxWidth, addText, addWrappedText, chec
 }
 
 function addPDFPositionStatement(doc, dc, margin, maxWidth, addText, addWrappedText, checkPageBreak) {
+    let paraNum = 1;
+
     if (dc.introduction) {
-        addWrappedText(dc.introduction, margin);
+        const paras = dc.introduction.split('\n\n');
+        paras.forEach(p => {
+            if (p.trim()) {
+                checkPageBreak();
+                addWrappedText(`${paraNum++}. ${p.trim()}`, margin);
+            }
+        });
     }
 
     if (dc.currentPosition) {
         checkPageBreak();
-        addWrappedText('Current Position', margin, { bold: true });
-        addWrappedText(dc.currentPosition, margin);
+        addWrappedText('CURRENT POSITION', margin, { bold: true });
+        const paras = dc.currentPosition.split('\n\n');
+        paras.forEach(p => {
+            if (p.trim()) {
+                addWrappedText(`${paraNum++}. ${p.trim()}`, margin);
+            }
+        });
     }
 
     if (dc.ordersSought) {
         checkPageBreak();
-        addWrappedText('Orders Sought', margin, { bold: true });
+        addWrappedText('ORDERS SOUGHT', margin, { bold: true });
         addWrappedText(dc.ordersSought, margin);
     }
 
     if (dc.outstanding) {
         checkPageBreak();
-        addWrappedText('Outstanding Issues', margin, { bold: true });
+        addWrappedText('OUTSTANDING ISSUES', margin, { bold: true });
         addWrappedText(dc.outstanding, margin);
     }
 }
 
 function addPDFDraftOrder(doc, dc, margin, maxWidth, addText, addWrappedText, checkPageBreak) {
+    if (dc.judgeName) {
+        addWrappedText(`BEFORE: ${dc.judgeName}`, margin, { bold: true });
+    }
+
     if (dc.recitals) {
         addWrappedText(dc.recitals, margin);
     }
@@ -1089,7 +1833,13 @@ function addPDFDraftOrder(doc, dc, margin, maxWidth, addText, addWrappedText, ch
     addWrappedText('IT IS ORDERED THAT:', margin, { bold: true });
 
     if (dc.provisions) {
-        addWrappedText(dc.provisions, margin);
+        const provisions = dc.provisions.split('\n\n');
+        provisions.forEach((p, i) => {
+            if (p.trim()) {
+                checkPageBreak();
+                addWrappedText(`${i + 1}. ${p.trim()}`, margin);
+            }
+        });
     }
 
     if (dc.serviceProvisions) {
@@ -1102,9 +1852,13 @@ function addPDFDraftOrder(doc, dc, margin, maxWidth, addText, addWrappedText, ch
     }
 }
 
-// Utility functions
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
 function generateFilename(ext) {
     const cd = AppState.caseDetails;
+    const dc = AppState.documentContent;
     const types = {
         'witness-statement': 'Witness_Statement',
         'skeleton-argument': 'Skeleton_Argument',
@@ -1113,8 +1867,13 @@ function generateFilename(ext) {
     };
 
     const docType = types[AppState.documentType] || 'Document';
-    const caseNum = cd.caseNumber.replace(/[^a-zA-Z0-9]/g, '_');
+    const caseNum = cd.caseNumber?.replace(/[^a-zA-Z0-9]/g, '_') || 'Draft';
     const date = new Date().toISOString().split('T')[0];
+    const name = dc.witnessName?.replace(/[^a-zA-Z0-9]/g, '_') || '';
+
+    if (AppState.documentType === 'witness-statement' && name) {
+        return `${docType}_${name}_${date}.${ext}`;
+    }
 
     return `${docType}_${caseNum}_${date}.${ext}`;
 }
@@ -1127,16 +1886,63 @@ function formatDate(dateStr) {
 }
 
 function clearAllForms() {
-    document.querySelectorAll('input:not([type="date"]), textarea, select').forEach(el => {
+    // Clear inputs
+    document.querySelectorAll('input:not([type="date"]), textarea').forEach(el => {
         if (el.id !== 'preparedBy') {
-            if (el.tagName === 'SELECT') {
-                el.selectedIndex = 0;
-            } else {
-                el.value = '';
-            }
+            el.value = '';
         }
     });
+
+    // Reset selects
+    document.querySelectorAll('select').forEach(el => {
+        el.selectedIndex = 0;
+    });
+
+    // Clear selected cards
     document.querySelectorAll('.doc-type-card').forEach(c => c.classList.remove('selected'));
+
+    // Clear parties
+    const partiesContainer = document.getElementById('partiesContainer');
+    if (partiesContainer) {
+        partiesContainer.innerHTML = '';
+        addPartyEntry();
+        addPartyEntry();
+    }
+
+    // Clear paragraphs
+    const paragraphsContainer = document.getElementById('paragraphsContainer');
+    if (paragraphsContainer) {
+        paragraphsContainer.innerHTML = '';
+    }
+    AppState.paragraphs = [];
+    AppState.paragraphCounter = 0;
+
+    // Clear exhibits
+    const exhibitsContainer = document.getElementById('exhibitsContainer');
+    if (exhibitsContainer) {
+        exhibitsContainer.innerHTML = '';
+    }
+    AppState.exhibits = [];
+    AppState.exhibitCounter = 0;
+
+    // Reset toggles
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.value === 'non-adversarial');
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === 'structured');
+    });
+
+    // Show structured mode
+    document.getElementById('structuredMode')?.classList.remove('hidden');
+    document.getElementById('freeMode')?.classList.add('hidden');
+
+    // Reset progress bar
+    document.querySelectorAll('.progress-step').forEach((ps, index) => {
+        ps.classList.remove('active', 'completed');
+        if (index === 0) ps.classList.add('active');
+    });
 }
 
 function showToast(message, type = 'info') {

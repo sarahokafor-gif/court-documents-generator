@@ -74,13 +74,36 @@
             </div>
         </header>
 
+        <!-- Progress Steps -->
+        <div class="progress-bar">
+            <div class="progress-step active" data-step="1">
+                <span class="step-circle">1</span>
+                <span class="step-label">Document Type</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" data-step="2">
+                <span class="step-circle">2</span>
+                <span class="step-label">Case Header</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" data-step="3">
+                <span class="step-circle">3</span>
+                <span class="step-label">Content</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" data-step="4">
+                <span class="step-circle">4</span>
+                <span class="step-label">Download</span>
+            </div>
+        </div>
+
         <!-- Main Content -->
         <main class="main-content">
             <!-- Step 1: Select Document Type -->
             <section id="step1" class="step active">
                 <div class="step-header">
-                    <span class="step-number">1</span>
                     <h2>Select Document Type</h2>
+                    <p>Choose the type of court document you want to generate</p>
                 </div>
                 <div class="document-types">
                     <button class="doc-type-card" data-type="witness-statement">
@@ -134,70 +157,182 @@
                 </div>
             </section>
 
-            <!-- Step 2: Case Details -->
+            <!-- Step 2: Case Header Details -->
             <section id="step2" class="step">
                 <div class="step-header">
-                    <span class="step-number">2</span>
-                    <h2>Case Details</h2>
+                    <h2>Case Header</h2>
+                    <p>Enter the court and case details that appear at the top of the document</p>
                 </div>
                 <div class="form-card">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="courtName">Court</label>
-                            <select id="courtName" required>
-                                <option value="">Select Court</option>
-                                <option value="IN THE COURT OF PROTECTION">Court of Protection</option>
-                                <option value="IN THE HIGH COURT OF JUSTICE&#10;FAMILY DIVISION">High Court - Family Division</option>
-                                <option value="IN THE HIGH COURT OF JUSTICE&#10;CHANCERY DIVISION">High Court - Chancery Division</option>
-                                <option value="IN THE HIGH COURT OF JUSTICE&#10;KING'S BENCH DIVISION">High Court - King's Bench Division</option>
-                                <option value="IN THE HIGH COURT OF JUSTICE&#10;KING'S BENCH DIVISION&#10;ADMINISTRATIVE COURT">Administrative Court</option>
-                                <option value="IN THE FAMILY COURT">Family Court</option>
-                                <option value="IN THE COUNTY COURT">County Court</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="caseNumber">Case Number</label>
-                            <input type="text" id="caseNumber" placeholder="e.g., 20025995" required>
-                        </div>
+                    <!-- Case Number - Top Right -->
+                    <div class="form-group">
+                        <label for="caseNumber">Case Number <span class="required">*</span></label>
+                        <input type="text" id="caseNumber" placeholder="e.g., 20025995" required>
+                        <small class="form-hint">Appears top-right of first page</small>
                     </div>
+
+                    <!-- Court Selection -->
+                    <div class="form-group">
+                        <label for="courtName">Court <span class="required">*</span></label>
+                        <select id="courtName" required>
+                            <option value="">Select Court</option>
+                            <option value="IN THE COURT OF PROTECTION">Court of Protection</option>
+                            <option value="IN THE HIGH COURT OF JUSTICE&#10;FAMILY DIVISION">High Court - Family Division</option>
+                            <option value="IN THE HIGH COURT OF JUSTICE&#10;CHANCERY DIVISION">High Court - Chancery Division</option>
+                            <option value="IN THE HIGH COURT OF JUSTICE&#10;KING'S BENCH DIVISION">High Court - King's Bench Division</option>
+                            <option value="IN THE HIGH COURT OF JUSTICE&#10;KING'S BENCH DIVISION&#10;ADMINISTRATIVE COURT">Administrative Court</option>
+                            <option value="IN THE FAMILY COURT">Family Court</option>
+                            <option value="IN THE COUNTY COURT">County Court</option>
+                            <option value="IN THE CROWN COURT">Crown Court</option>
+                        </select>
+                        <small class="form-hint">Left-aligned below case number</small>
+                    </div>
+
+                    <!-- In the Matter Of (Statute) -->
                     <div class="form-group">
                         <label for="matterOf">In the Matter of (Statute/Act)</label>
                         <input type="text" id="matterOf" placeholder="e.g., THE MENTAL CAPACITY ACT 2005">
+                        <small class="form-hint">Optional - the relevant legislation</small>
                     </div>
+
+                    <!-- In the Matter Of (Subject) -->
                     <div class="form-group">
                         <label for="inMatterPerson">In the Matter of (Person/Property)</label>
                         <input type="text" id="inMatterPerson" placeholder="e.g., JOHN SMITH or 123 High Street, London">
+                        <small class="form-hint">The person (P) or property that is the subject</small>
                     </div>
 
+                    <hr class="section-divider">
+
+                    <!-- Proceeding Type Toggle -->
+                    <div class="form-group">
+                        <label>Type of Proceedings</label>
+                        <div class="toggle-group">
+                            <button type="button" class="toggle-btn active" data-value="non-adversarial" id="toggleNonAdversarial">
+                                Non-Adversarial
+                                <small>- and -</small>
+                            </button>
+                            <button type="button" class="toggle-btn" data-value="adversarial" id="toggleAdversarial">
+                                Adversarial
+                                <small>- v -</small>
+                            </button>
+                        </div>
+                        <input type="hidden" id="proceedingType" value="non-adversarial">
+                    </div>
+
+                    <!-- Parties Section -->
                     <h3 class="form-section-title">Parties</h3>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="party1Name">Party 1 Name</label>
-                            <input type="text" id="party1Name" placeholder="e.g., THE AUTHORISED OFFICER OF THURROCK COUNCIL">
+                    <div id="partiesContainer">
+                        <!-- Party 1 -->
+                        <div class="party-entry" data-party-index="0">
+                            <div class="party-header">
+                                <span class="party-label">Party 1</span>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group flex-2">
+                                    <label>Name</label>
+                                    <input type="text" class="party-name" placeholder="e.g., THE AUTHORISED OFFICER OF THURROCK COUNCIL">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label>Designation</label>
+                                    <select class="party-role">
+                                        <option value="Applicant">Applicant</option>
+                                        <option value="Claimant">Claimant</option>
+                                        <option value="Petitioner">Petitioner</option>
+                                        <option value="Appellant">Appellant</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row litigation-friend-row">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" class="has-litigation-friend">
+                                        <span>Has Litigation Friend / Representative</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="litigation-friend-details hidden">
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <label>Prefix</label>
+                                        <select class="lf-prefix">
+                                            <option value="by his litigation friend">by his litigation friend</option>
+                                            <option value="by her litigation friend">by her litigation friend</option>
+                                            <option value="by their litigation friend">by their litigation friend</option>
+                                            <option value="by his Accredited Legal Representative">by his Accredited Legal Representative</option>
+                                            <option value="by her Accredited Legal Representative">by her Accredited Legal Representative</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group flex-2">
+                                        <label>Name of Litigation Friend</label>
+                                        <input type="text" class="lf-name" placeholder="e.g., THE OFFICIAL SOLICITOR">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="party1Role">Party 1 Designation</label>
-                            <select id="party1Role">
-                                <option value="Applicant">Applicant</option>
-                                <option value="Claimant">Claimant</option>
-                                <option value="Petitioner">Petitioner</option>
-                            </select>
+
+                        <!-- Party 2 -->
+                        <div class="party-entry" data-party-index="1">
+                            <div class="party-header">
+                                <span class="party-label">Party 2</span>
+                                <button type="button" class="btn btn-icon btn-remove-party hidden" title="Remove party">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group flex-2">
+                                    <label>Name</label>
+                                    <input type="text" class="party-name" placeholder="e.g., JOHN SMITH">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label>Designation</label>
+                                    <select class="party-role">
+                                        <option value="Respondent">Respondent</option>
+                                        <option value="Defendant">Defendant</option>
+                                        <option value="First Respondent">First Respondent</option>
+                                        <option value="Second Respondent">Second Respondent</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row litigation-friend-row">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" class="has-litigation-friend">
+                                        <span>Has Litigation Friend / Representative</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="litigation-friend-details hidden">
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <label>Prefix</label>
+                                        <select class="lf-prefix">
+                                            <option value="by his litigation friend">by his litigation friend</option>
+                                            <option value="by her litigation friend">by her litigation friend</option>
+                                            <option value="by their litigation friend">by their litigation friend</option>
+                                            <option value="by his Accredited Legal Representative">by his Accredited Legal Representative</option>
+                                            <option value="by her Accredited Legal Representative">by her Accredited Legal Representative</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group flex-2">
+                                        <label>Name of Litigation Friend</label>
+                                        <input type="text" class="lf-name" placeholder="e.g., THE OFFICIAL SOLICITOR">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="party2Name">Party 2 Name</label>
-                            <input type="text" id="party2Name" placeholder="e.g., JOHN SMITH (by his Accredited Legal Representative)">
-                        </div>
-                        <div class="form-group">
-                            <label for="party2Role">Party 2 Designation</label>
-                            <select id="party2Role">
-                                <option value="Respondent">Respondent</option>
-                                <option value="Defendant">Defendant</option>
-                                <option value="First Respondent">First Respondent</option>
-                            </select>
-                        </div>
-                    </div>
+
+                    <button type="button" id="addPartyBtn" class="btn btn-outline btn-sm">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Another Party
+                    </button>
 
                     <div class="form-actions">
                         <button type="button" class="btn btn-outline" id="backToStep1">Back</button>
@@ -206,33 +341,24 @@
                 </div>
             </section>
 
-            <!-- Step 3: Document Content (Dynamic based on type) -->
+            <!-- Step 3: Document Content -->
             <section id="step3" class="step">
                 <div class="step-header">
-                    <span class="step-number">3</span>
                     <h2 id="step3Title">Document Content</h2>
+                    <p id="step3Subtitle">Build your witness statement content</p>
                 </div>
 
                 <!-- Witness Statement Form -->
-                <div id="witnessStatementForm" class="document-form hidden">
+                <div id="witnessStatementForm" class="document-form">
                     <div class="form-card">
                         <h3 class="form-section-title">Witness Details</h3>
                         <div class="form-row">
-                            <div class="form-group">
-                                <label for="witnessName">Full Name of Witness</label>
+                            <div class="form-group flex-2">
+                                <label for="witnessName">Full Name of Witness <span class="required">*</span></label>
                                 <input type="text" id="witnessName" placeholder="e.g., Richard Hansell">
+                                <small class="form-hint">Will appear in CAPITALS in opening line</small>
                             </div>
-                            <div class="form-group">
-                                <label for="witnessRole">Role/Position</label>
-                                <input type="text" id="witnessRole" placeholder="e.g., Social Worker, Thurrock Council">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="witnessAddress">Address</label>
-                                <input type="text" id="witnessAddress" placeholder="Professional address">
-                            </div>
-                            <div class="form-group">
+                            <div class="form-group flex-1">
                                 <label for="statementNumber">Statement Number</label>
                                 <select id="statementNumber">
                                     <option value="1st">1st Statement</option>
@@ -240,22 +366,164 @@
                                     <option value="3rd">3rd Statement</option>
                                     <option value="4th">4th Statement</option>
                                     <option value="5th">5th Statement</option>
+                                    <option value="6th">6th Statement</option>
                                 </select>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="exhibitMark">Exhibit Mark (if any)</label>
-                            <input type="text" id="exhibitMark" placeholder="e.g., RH-1">
+                            <label for="witnessAddress">Address</label>
+                            <input type="text" id="witnessAddress" placeholder="e.g., Thurrock Council, Civic Offices, New Road, Grays, Essex RM17 6SL">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="witnessRole">Role/Position</label>
+                                <input type="text" id="witnessRole" placeholder="e.g., Social Worker, Thurrock Council">
+                            </div>
+                            <div class="form-group">
+                                <label for="exhibitMark">Exhibit Mark (if any)</label>
+                                <input type="text" id="exhibitMark" placeholder="e.g., RH-1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Writing Mode Toggle -->
+                    <div class="form-card">
+                        <h3 class="form-section-title">Statement Content</h3>
+                        <div class="writing-mode-toggle">
+                            <button type="button" class="mode-btn active" data-mode="structured" id="structuredModeBtn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                </svg>
+                                Structured Mode
+                            </button>
+                            <button type="button" class="mode-btn" data-mode="free" id="freeModeBtn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                                Free Writing Mode
+                            </button>
                         </div>
 
-                        <h3 class="form-section-title">Statement Content</h3>
-                        <div class="form-group">
-                            <label for="wsIntro">Introduction</label>
-                            <textarea id="wsIntro" rows="3" placeholder="I, [Name], of [Address], [Role], make this statement in support of..."></textarea>
+                        <!-- Structured Mode Content -->
+                        <div id="structuredMode" class="writing-mode-content active">
+                            <div class="structured-info">
+                                <p><strong>Structured Mode:</strong> Add individual paragraphs that are automatically numbered. Drag to reorder.</p>
+                            </div>
+
+                            <!-- Paragraph Container -->
+                            <div id="paragraphsContainer">
+                                <!-- Paragraphs will be added here dynamically -->
+                            </div>
+
+                            <div class="add-paragraph-section">
+                                <button type="button" id="addParagraphBtn" class="btn btn-outline">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                    Add Paragraph
+                                </button>
+
+                                <!-- Phrase Suggestions -->
+                                <div class="phrase-suggestions">
+                                    <span class="suggestions-label">Quick phrases:</span>
+                                    <button type="button" class="phrase-btn" data-phrase="I am the allocated social worker for P and have held this role since [date].">Social Worker intro</button>
+                                    <button type="button" class="phrase-btn" data-phrase="I make this statement in support of the Applicant's application for [orders sought].">Purpose</button>
+                                    <button type="button" class="phrase-btn" data-phrase="I refer to page [X] of the hearing bundle at Tab [Y] which is [document description].">Bundle reference</button>
+                                    <button type="button" class="phrase-btn" data-phrase="A Round Table Meeting took place on [date] at which it was agreed that [outcome].">RTM reference</button>
+                                    <button type="button" class="phrase-btn" data-phrase="The current care and support plan provides for [description of care package].">Care plan</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="wsBody">Main Content (use numbered paragraphs)</label>
-                            <textarea id="wsBody" rows="12" placeholder="1. I am the allocated social worker for P and have been since [date].&#10;&#10;2. This statement addresses...&#10;&#10;3. ..."></textarea>
+
+                        <!-- Free Mode Content -->
+                        <div id="freeMode" class="writing-mode-content">
+                            <div class="free-mode-info">
+                                <p><strong>Free Writing Mode:</strong> Write your entire statement in one text box. Use line breaks between paragraphs. Numbering will be added automatically.</p>
+                            </div>
+                            <div class="form-group">
+                                <textarea id="freeWritingArea" rows="20" placeholder="1. I am the allocated social worker for P and have been since [date].
+
+2. This statement addresses...
+
+3. ..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exhibits Section -->
+                    <div class="form-card">
+                        <h3 class="form-section-title">
+                            Exhibits
+                            <span class="section-subtitle">(Optional)</span>
+                        </h3>
+                        <div class="exhibits-info">
+                            <p>Add exhibits that are attached to this witness statement. These will be listed in a schedule.</p>
+                        </div>
+
+                        <div id="exhibitsContainer">
+                            <!-- Exhibits will be added here dynamically -->
+                        </div>
+
+                        <div class="add-exhibit-section">
+                            <div class="form-row">
+                                <div class="form-group flex-1">
+                                    <label>Document Type</label>
+                                    <select id="newExhibitType">
+                                        <option value="">Select type...</option>
+                                        <option value="Care and Support Plan">Care and Support Plan</option>
+                                        <option value="Mental Capacity Assessment">Mental Capacity Assessment</option>
+                                        <option value="COP3 Assessment">COP3 Assessment</option>
+                                        <option value="Best Interests Assessment">Best Interests Assessment</option>
+                                        <option value="Social Work Report">Social Work Report</option>
+                                        <option value="Medical Report">Medical Report</option>
+                                        <option value="Psychiatric Report">Psychiatric Report</option>
+                                        <option value="Psychological Report">Psychological Report</option>
+                                        <option value="Nursing Assessment">Nursing Assessment</option>
+                                        <option value="Safeguarding Report">Safeguarding Report</option>
+                                        <option value="Position Statement">Position Statement</option>
+                                        <option value="Witness Statement">Witness Statement</option>
+                                        <option value="Email correspondence">Email correspondence</option>
+                                        <option value="Letter">Letter</option>
+                                        <option value="Meeting Minutes">Meeting Minutes</option>
+                                        <option value="RTM Minutes">RTM Minutes</option>
+                                        <option value="Photograph">Photograph</option>
+                                        <option value="Other">Other (specify)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label>Date</label>
+                                    <input type="date" id="newExhibitDate">
+                                </div>
+                            </div>
+                            <div class="form-group" id="exhibitCustomTypeGroup" style="display: none;">
+                                <label>Custom Document Type</label>
+                                <input type="text" id="newExhibitCustomType" placeholder="Enter document type">
+                            </div>
+                            <div class="form-group">
+                                <label>Description (optional)</label>
+                                <input type="text" id="newExhibitDescription" placeholder="e.g., from Dr Smith to Dr Jones">
+                            </div>
+                            <button type="button" id="addExhibitBtn" class="btn btn-outline btn-sm">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Add Exhibit
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-card">
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-outline" id="backToStep2">Back</button>
+                            <button type="button" class="btn btn-primary" id="toStep4">Continue to Preview</button>
                         </div>
                     </div>
                 </div>
@@ -304,6 +572,11 @@
                             <label for="skAuthorities">Authorities List</label>
                             <textarea id="skAuthorities" rows="4" placeholder="1. Re X [2024] EWCOP 1&#10;2. Cheshire West [2014] UKSC 19"></textarea>
                         </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-outline" id="backToStep2Skeleton">Back</button>
+                            <button type="button" class="btn btn-primary" id="toStep4Skeleton">Continue to Preview</button>
+                        </div>
                     </div>
                 </div>
 
@@ -338,6 +611,11 @@
                         <div class="form-group">
                             <label for="psOutstanding">Outstanding Issues (if any)</label>
                             <textarea id="psOutstanding" rows="3" placeholder="The following matters remain outstanding..."></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-outline" id="backToStep2Position">Back</button>
+                            <button type="button" class="btn btn-primary" id="toStep4Position">Continue to Preview</button>
                         </div>
                     </div>
                 </div>
@@ -383,13 +661,11 @@
                             <label for="costsProvisions">Costs</label>
                             <input type="text" id="costsProvisions" placeholder="e.g., No order as to costs / Costs reserved">
                         </div>
-                    </div>
-                </div>
 
-                <div class="form-card">
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-outline" id="backToStep2">Back</button>
-                        <button type="button" class="btn btn-primary" id="toStep4">Continue to Preview</button>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-outline" id="backToStep2Order">Back</button>
+                            <button type="button" class="btn btn-primary" id="toStep4Order">Continue to Preview</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -397,8 +673,8 @@
             <!-- Step 4: Preview & Generate -->
             <section id="step4" class="step">
                 <div class="step-header">
-                    <span class="step-number">4</span>
-                    <h2>Preview & Generate</h2>
+                    <h2>Preview & Download</h2>
+                    <p>Review your document and download in your preferred format</p>
                 </div>
                 <div class="preview-container">
                     <div class="preview-header">
