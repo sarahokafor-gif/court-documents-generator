@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPhraseSuggestions();
     initExhibitSystem();
     initDownloadButtons();
+    initSaveLoad();
 
     // Add initial party entries
     addPartyEntry();
@@ -1969,4 +1970,397 @@ function showToast(message, type = 'info') {
     setTimeout(() => {
         toast.remove();
     }, 3000);
+}
+
+// ============================================
+// SAVE AND LOAD FUNCTIONALITY
+// ============================================
+
+function initSaveLoad() {
+    document.getElementById('saveWorkBtn')?.addEventListener('click', saveWork);
+    document.getElementById('loadWorkBtn')?.addEventListener('click', () => {
+        document.getElementById('loadFileInput')?.click();
+    });
+    document.getElementById('loadFileInput')?.addEventListener('change', loadWork);
+}
+
+function saveWork() {
+    // Collect current form data into state
+    collectCaseDetails();
+    collectDocumentContent();
+
+    // Create save object with all state and form values
+    const saveData = {
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        appState: {
+            currentStep: AppState.currentStep,
+            documentType: AppState.documentType,
+            proceedingType: AppState.proceedingType,
+            writingMode: AppState.writingMode,
+            parties: AppState.parties,
+            paragraphs: AppState.paragraphs,
+            paragraphCounter: AppState.paragraphCounter,
+            exhibits: AppState.exhibits,
+            exhibitCounter: AppState.exhibitCounter,
+            caseDetails: AppState.caseDetails,
+            documentContent: AppState.documentContent
+        },
+        formValues: {
+            // Case details form
+            courtName: document.getElementById('courtName')?.value || '',
+            caseNumber: document.getElementById('caseNumber')?.value || '',
+            matterOf: document.getElementById('matterOf')?.value || '',
+            inMatterPerson: document.getElementById('inMatterPerson')?.value || '',
+
+            // Witness statement form
+            witnessName: document.getElementById('witnessName')?.value || '',
+            witnessRole: document.getElementById('witnessRole')?.value || '',
+            witnessAddress: document.getElementById('witnessAddress')?.value || '',
+            statementNumber: document.getElementById('statementNumber')?.value || '',
+            exhibitMark: document.getElementById('exhibitMark')?.value || '',
+            wsIntro: document.getElementById('wsIntro')?.value || '',
+            freeWritingArea: document.getElementById('freeWritingArea')?.value || '',
+
+            // Skeleton argument form
+            hearingDate: document.getElementById('hearingDate')?.value || '',
+            hearingType: document.getElementById('hearingType')?.value || '',
+            timeEstimate: document.getElementById('timeEstimate')?.value || '',
+            skIntro: document.getElementById('skIntro')?.value || '',
+            skIssues: document.getElementById('skIssues')?.value || '',
+            skLaw: document.getElementById('skLaw')?.value || '',
+            skApplication: document.getElementById('skApplication')?.value || '',
+            skRelief: document.getElementById('skRelief')?.value || '',
+            skAuthorities: document.getElementById('skAuthorities')?.value || '',
+
+            // Position statement form
+            psHearingDate: document.getElementById('psHearingDate')?.value || '',
+            psOnBehalfOf: document.getElementById('psOnBehalfOf')?.value || '',
+            psIntro: document.getElementById('psIntro')?.value || '',
+            psCurrentPosition: document.getElementById('psCurrentPosition')?.value || '',
+            psOrders: document.getElementById('psOrders')?.value || '',
+            psOutstanding: document.getElementById('psOutstanding')?.value || '',
+
+            // Draft order form
+            orderType: document.getElementById('orderType')?.value || '',
+            judgeName: document.getElementById('judgeName')?.value || '',
+            recitals: document.getElementById('recitals')?.value || '',
+            orderProvisions: document.getElementById('orderProvisions')?.value || '',
+            serviceProvisions: document.getElementById('serviceProvisions')?.value || '',
+            costsProvisions: document.getElementById('costsProvisions')?.value || '',
+
+            // Preview settings
+            preparedBy: document.getElementById('preparedBy')?.value || '',
+            documentDate: document.getElementById('documentDate')?.value || ''
+        }
+    };
+
+    // Generate filename based on case details
+    const caseNum = saveData.formValues.caseNumber.replace(/[^a-zA-Z0-9]/g, '_') || 'draft';
+    const docType = AppState.documentType || 'document';
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `${docType}_${caseNum}_${timestamp}.json`;
+
+    // Create and download the file
+    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Work saved successfully!', 'success');
+}
+
+function loadWork(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const saveData = JSON.parse(e.target.result);
+
+            // Validate the save file
+            if (!saveData.version || !saveData.appState) {
+                showToast('Invalid save file format', 'error');
+                return;
+            }
+
+            // Restore AppState
+            Object.assign(AppState, saveData.appState);
+
+            // Clear current form state
+            clearAllForms();
+
+            // Restore form values
+            const fv = saveData.formValues;
+
+            // Case details
+            setFieldValue('courtName', fv.courtName);
+            setFieldValue('caseNumber', fv.caseNumber);
+            setFieldValue('matterOf', fv.matterOf);
+            setFieldValue('inMatterPerson', fv.inMatterPerson);
+
+            // Witness statement
+            setFieldValue('witnessName', fv.witnessName);
+            setFieldValue('witnessRole', fv.witnessRole);
+            setFieldValue('witnessAddress', fv.witnessAddress);
+            setFieldValue('statementNumber', fv.statementNumber);
+            setFieldValue('exhibitMark', fv.exhibitMark);
+            setFieldValue('wsIntro', fv.wsIntro);
+            setFieldValue('freeWritingArea', fv.freeWritingArea);
+
+            // Skeleton argument
+            setFieldValue('hearingDate', fv.hearingDate);
+            setFieldValue('hearingType', fv.hearingType);
+            setFieldValue('timeEstimate', fv.timeEstimate);
+            setFieldValue('skIntro', fv.skIntro);
+            setFieldValue('skIssues', fv.skIssues);
+            setFieldValue('skLaw', fv.skLaw);
+            setFieldValue('skApplication', fv.skApplication);
+            setFieldValue('skRelief', fv.skRelief);
+            setFieldValue('skAuthorities', fv.skAuthorities);
+
+            // Position statement
+            setFieldValue('psHearingDate', fv.psHearingDate);
+            setFieldValue('psOnBehalfOf', fv.psOnBehalfOf);
+            setFieldValue('psIntro', fv.psIntro);
+            setFieldValue('psCurrentPosition', fv.psCurrentPosition);
+            setFieldValue('psOrders', fv.psOrders);
+            setFieldValue('psOutstanding', fv.psOutstanding);
+
+            // Draft order
+            setFieldValue('orderType', fv.orderType);
+            setFieldValue('judgeName', fv.judgeName);
+            setFieldValue('recitals', fv.recitals);
+            setFieldValue('orderProvisions', fv.orderProvisions);
+            setFieldValue('serviceProvisions', fv.serviceProvisions);
+            setFieldValue('costsProvisions', fv.costsProvisions);
+
+            // Preview settings
+            setFieldValue('preparedBy', fv.preparedBy);
+            setFieldValue('documentDate', fv.documentDate);
+
+            // Restore document type selection
+            if (AppState.documentType) {
+                document.querySelectorAll('.doc-type-card').forEach(card => {
+                    card.classList.toggle('selected', card.dataset.type === AppState.documentType);
+                });
+            }
+
+            // Restore proceeding type toggle
+            document.querySelectorAll('.toggle-group .toggle-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === AppState.proceedingType);
+            });
+
+            // Restore writing mode toggle
+            document.querySelectorAll('.writing-mode-toggle .mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === AppState.writingMode);
+            });
+
+            // Show/hide writing mode sections
+            const structuredMode = document.getElementById('structuredMode');
+            const freeMode = document.getElementById('freeMode');
+            if (structuredMode && freeMode) {
+                if (AppState.writingMode === 'structured') {
+                    structuredMode.classList.remove('hidden');
+                    freeMode.classList.add('hidden');
+                } else {
+                    structuredMode.classList.add('hidden');
+                    freeMode.classList.remove('hidden');
+                }
+            }
+
+            // Restore parties
+            restoreParties(AppState.parties);
+
+            // Restore paragraphs
+            restoreParagraphs(AppState.paragraphs);
+
+            // Restore exhibits
+            restoreExhibits(AppState.exhibits);
+
+            // Navigate to the saved step
+            goToStep(AppState.currentStep);
+
+            showToast('Work loaded successfully!', 'success');
+        } catch (error) {
+            console.error('Error loading save file:', error);
+            showToast('Error loading save file. Please check the file format.', 'error');
+        }
+    };
+
+    reader.readAsText(file);
+
+    // Reset file input so same file can be loaded again
+    event.target.value = '';
+}
+
+function setFieldValue(id, value) {
+    const el = document.getElementById(id);
+    if (el && value !== undefined) {
+        el.value = value;
+    }
+}
+
+function restoreParties(parties) {
+    const container = document.getElementById('partiesContainer');
+    if (!container) return;
+
+    // Clear existing parties
+    container.innerHTML = '';
+
+    // Add parties from saved data
+    parties.forEach((party, index) => {
+        const designations = index === 0
+            ? ['Applicant', 'Claimant', 'Petitioner', 'Appellant']
+            : ['Respondent', 'Defendant', 'First Respondent', 'Second Respondent'];
+
+        const entry = document.createElement('div');
+        entry.className = 'party-entry';
+        entry.innerHTML = `
+            <div class="party-header">
+                <span class="party-label">Party ${index + 1}</span>
+                <button type="button" class="remove-party-btn" title="Remove party">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-2">
+                    <label>Party Name</label>
+                    <input type="text" class="party-name" placeholder="e.g., John Smith" value="${escapeHtml(party.name || '')}">
+                </div>
+                <div class="form-group">
+                    <label>Designation</label>
+                    <select class="party-role">
+                        ${designations.map(d => `<option value="${d}" ${d === party.designation ? 'selected' : ''}>${d}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" class="has-litigation-friend" ${party.hasLitigationFriend ? 'checked' : ''}>
+                    <span>Has Litigation Friend / Accredited Legal Representative</span>
+                </label>
+            </div>
+            <div class="litigation-friend-details ${party.hasLitigationFriend ? '' : 'hidden'}">
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>Prefix</label>
+                        <select class="lf-prefix">
+                            <option value="by his litigation friend" ${party.litigationFriendRole === 'by his litigation friend' ? 'selected' : ''}>by his litigation friend</option>
+                            <option value="by her litigation friend" ${party.litigationFriendRole === 'by her litigation friend' ? 'selected' : ''}>by her litigation friend</option>
+                            <option value="by their litigation friend" ${party.litigationFriendRole === 'by their litigation friend' ? 'selected' : ''}>by their litigation friend</option>
+                            <option value="by his Accredited Legal Representative" ${party.litigationFriendRole === 'by his Accredited Legal Representative' ? 'selected' : ''}>by his Accredited Legal Representative</option>
+                            <option value="by her Accredited Legal Representative" ${party.litigationFriendRole === 'by her Accredited Legal Representative' ? 'selected' : ''}>by her Accredited Legal Representative</option>
+                        </select>
+                    </div>
+                    <div class="form-group flex-2">
+                        <label>Name of Litigation Friend</label>
+                        <input type="text" class="lf-name" placeholder="e.g., THE OFFICIAL SOLICITOR" value="${escapeHtml(party.litigationFriendName || '')}">
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(entry);
+
+        // Set up event listeners
+        const checkbox = entry.querySelector('.has-litigation-friend');
+        const lfDetails = entry.querySelector('.litigation-friend-details');
+        checkbox.addEventListener('change', () => {
+            lfDetails.classList.toggle('hidden', !checkbox.checked);
+        });
+
+        const removeBtn = entry.querySelector('.remove-party-btn');
+        removeBtn.addEventListener('click', () => {
+            if (container.querySelectorAll('.party-entry').length > 2) {
+                entry.remove();
+                renumberParties();
+            } else {
+                showToast('At least two parties are required', 'error');
+            }
+        });
+    });
+
+    // Ensure at least 2 parties
+    while (container.querySelectorAll('.party-entry').length < 2) {
+        addPartyEntry();
+    }
+}
+
+function restoreParagraphs(paragraphs) {
+    const container = document.getElementById('paragraphsContainer');
+    if (!container) return;
+
+    // Clear existing paragraphs
+    container.innerHTML = '';
+    AppState.paragraphs = [];
+    AppState.paragraphCounter = 0;
+
+    // Add paragraphs from saved data
+    paragraphs.forEach(para => {
+        addParagraph(para.content);
+    });
+
+    // Ensure at least one paragraph if in structured mode
+    if (AppState.writingMode === 'structured' && AppState.paragraphs.length === 0) {
+        addParagraph();
+    }
+}
+
+function restoreExhibits(exhibits) {
+    const container = document.getElementById('exhibitsContainer');
+    if (!container) return;
+
+    // Clear existing exhibits
+    container.innerHTML = '';
+    AppState.exhibits = [];
+    AppState.exhibitCounter = 0;
+
+    // Add exhibits from saved data
+    exhibits.forEach(ex => {
+        AppState.exhibitCounter++;
+        const id = `exhibit-${AppState.exhibitCounter}`;
+
+        AppState.exhibits.push({
+            id,
+            type: ex.type,
+            description: ex.description,
+            mark: ex.mark
+        });
+
+        const item = document.createElement('div');
+        item.className = 'exhibit-item';
+        item.dataset.id = id;
+
+        item.innerHTML = `
+            <div class="exhibit-header">
+                <span class="exhibit-number">${ex.mark}</span>
+                <button type="button" class="remove-exhibit-btn" title="Remove exhibit">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="exhibit-content">
+                <span class="exhibit-type-label">${escapeHtml(ex.type)}</span>
+                ${ex.description ? `<span class="exhibit-desc">${escapeHtml(ex.description)}</span>` : ''}
+            </div>
+        `;
+
+        container.appendChild(item);
+
+        item.querySelector('.remove-exhibit-btn').addEventListener('click', () => {
+            removeExhibit(id);
+        });
+    });
 }
