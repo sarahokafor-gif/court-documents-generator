@@ -133,6 +133,30 @@ function initNavigation() {
         clearAllForms();
         goToStep(1);
     });
+
+    // Skeleton Argument form navigation
+    document.getElementById('backToStep2Skeleton')?.addEventListener('click', () => goToStep(2));
+    document.getElementById('toStep4Skeleton')?.addEventListener('click', () => {
+        if (collectDocumentContent()) {
+            goToStep(4);
+        }
+    });
+
+    // Position Statement form navigation
+    document.getElementById('backToStep2Position')?.addEventListener('click', () => goToStep(2));
+    document.getElementById('toStep4Position')?.addEventListener('click', () => {
+        if (collectDocumentContent()) {
+            goToStep(4);
+        }
+    });
+
+    // Draft Order form navigation
+    document.getElementById('backToStep2Order')?.addEventListener('click', () => goToStep(2));
+    document.getElementById('toStep4Order')?.addEventListener('click', () => {
+        if (collectDocumentContent()) {
+            goToStep(4);
+        }
+    });
 }
 
 function canNavigateToStep(targetStep) {
@@ -184,7 +208,7 @@ function initProceedingTypeToggle() {
 // ============================================
 
 function initPartySystem() {
-    document.getElementById('addParty')?.addEventListener('click', addPartyEntry);
+    document.getElementById('addPartyBtn')?.addEventListener('click', addPartyEntry);
 }
 
 function addPartyEntry() {
@@ -200,7 +224,7 @@ function addPartyEntry() {
     entry.className = 'party-entry';
     entry.innerHTML = `
         <div class="party-header">
-            <span class="party-number">Party ${partyIndex + 1}</span>
+            <span class="party-label">Party ${partyIndex + 1}</span>
             <button type="button" class="remove-party-btn" title="Remove party">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -215,7 +239,7 @@ function addPartyEntry() {
             </div>
             <div class="form-group">
                 <label>Designation</label>
-                <select class="party-designation">
+                <select class="party-role">
                     ${designations.map(d => `<option value="${d}">${d}</option>`).join('')}
                 </select>
             </div>
@@ -227,16 +251,21 @@ function addPartyEntry() {
             </label>
         </div>
         <div class="litigation-friend-details hidden">
-            <div class="form-group">
-                <label>Litigation Friend Name</label>
-                <input type="text" class="litigation-friend-name" placeholder="e.g., Jane Doe">
-            </div>
-            <div class="form-group">
-                <label>Role</label>
-                <select class="litigation-friend-role">
-                    <option value="litigation friend">Litigation Friend</option>
-                    <option value="Accredited Legal Representative">Accredited Legal Representative</option>
-                </select>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>Prefix</label>
+                    <select class="lf-prefix">
+                        <option value="by his litigation friend">by his litigation friend</option>
+                        <option value="by her litigation friend">by her litigation friend</option>
+                        <option value="by their litigation friend">by their litigation friend</option>
+                        <option value="by his Accredited Legal Representative">by his Accredited Legal Representative</option>
+                        <option value="by her Accredited Legal Representative">by her Accredited Legal Representative</option>
+                    </select>
+                </div>
+                <div class="form-group flex-2">
+                    <label>Name of Litigation Friend</label>
+                    <input type="text" class="lf-name" placeholder="e.g., THE OFFICIAL SOLICITOR">
+                </div>
             </div>
         </div>
     `;
@@ -264,7 +293,7 @@ function addPartyEntry() {
 function renumberParties() {
     const entries = document.querySelectorAll('.party-entry');
     entries.forEach((entry, index) => {
-        entry.querySelector('.party-number').textContent = `Party ${index + 1}`;
+        entry.querySelector('.party-label').textContent = `Party ${index + 1}`;
     });
 }
 
@@ -274,10 +303,10 @@ function collectParties() {
 
     entries.forEach(entry => {
         const name = entry.querySelector('.party-name').value.trim();
-        const designation = entry.querySelector('.party-designation').value;
+        const designation = entry.querySelector('.party-role').value;
         const hasLF = entry.querySelector('.has-litigation-friend').checked;
-        const lfName = entry.querySelector('.litigation-friend-name').value.trim();
-        const lfRole = entry.querySelector('.litigation-friend-role').value;
+        const lfName = entry.querySelector('.lf-name')?.value.trim() || '';
+        const lfRole = entry.querySelector('.lf-prefix')?.value || '';
 
         if (name) {
             parties.push({
@@ -394,7 +423,7 @@ function initWritingModeToggle() {
 // ============================================
 
 function initParagraphSystem() {
-    document.getElementById('addParagraph')?.addEventListener('click', addParagraph);
+    document.getElementById('addParagraphBtn')?.addEventListener('click', addParagraph);
 
     // Add initial paragraph
     setTimeout(() => {
@@ -420,7 +449,7 @@ function addParagraph(initialContent = '') {
 
     card.innerHTML = `
         <div class="paragraph-header">
-            <span class="drag-handle">
+            <span class="paragraph-drag-handle">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="9" cy="12" r="1"></circle>
                     <circle cx="9" cy="5" r="1"></circle>
@@ -569,8 +598,8 @@ function insertPhrase(phrase) {
             addParagraph(phrase);
         }
     } else {
-        // Free mode - insert into wsBody
-        const textarea = document.getElementById('wsBody');
+        // Free mode - insert into freeWritingArea
+        const textarea = document.getElementById('freeWritingArea');
         if (textarea) {
             const cursorPos = textarea.selectionStart;
             const before = textarea.value.substring(0, cursorPos);
@@ -587,45 +616,70 @@ function insertPhrase(phrase) {
 // ============================================
 
 function initExhibitSystem() {
-    document.getElementById('addExhibit')?.addEventListener('click', addExhibit);
+    document.getElementById('addExhibitBtn')?.addEventListener('click', addExhibit);
+
+    // Show/hide custom type field when "Other" is selected
+    const typeSelect = document.getElementById('newExhibitType');
+    const customTypeGroup = document.getElementById('exhibitCustomTypeGroup');
+    if (typeSelect && customTypeGroup) {
+        typeSelect.addEventListener('change', () => {
+            customTypeGroup.style.display = typeSelect.value === 'Other' ? 'block' : 'none';
+        });
+    }
 }
 
 function addExhibit() {
     const container = document.getElementById('exhibitsContainer');
     if (!container) return;
 
+    // Get values from the form fields
+    const typeSelect = document.getElementById('newExhibitType');
+    const dateInput = document.getElementById('newExhibitDate');
+    const customTypeInput = document.getElementById('newExhibitCustomType');
+    const descriptionInput = document.getElementById('newExhibitDescription');
+
+    const selectedType = typeSelect?.value;
+    if (!selectedType) {
+        showToast('Please select a document type', 'error');
+        return;
+    }
+
+    const customType = selectedType === 'Other' ? customTypeInput?.value.trim() : '';
+    if (selectedType === 'Other' && !customType) {
+        showToast('Please enter a custom document type', 'error');
+        return;
+    }
+
     AppState.exhibitCounter++;
     const id = `exhibit-${AppState.exhibitCounter}`;
 
-    const exhibitTypes = [
-        'Care and Support Plan',
-        'Mental Capacity Assessment',
-        'COP3 Assessment of Capacity',
-        'COP24 Witness Statement',
-        'Schedule of Restrictions',
-        'Best Interests Assessment',
-        'RTM Minutes',
-        'Medical Report',
-        'Social Work Assessment',
-        'Discharge Summary',
-        'Risk Assessment',
-        'Correspondence',
-        'Court Order',
-        'Other'
-    ];
+    // Generate exhibit mark based on witness initials
+    const witnessName = document.getElementById('witnessName')?.value || '';
+    const initials = witnessName.split(' ').map(n => n[0]?.toUpperCase() || '').join('') || 'XX';
+    const mark = `${initials}-${AppState.exhibitCounter}`;
 
-    AppState.exhibits.push({ id, type: exhibitTypes[0], customType: '', description: '' });
+    // Format the date if provided
+    const dateValue = dateInput?.value;
+    const formattedDate = dateValue ? new Date(dateValue).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 
+    // Build the description
+    const docType = selectedType === 'Other' ? customType : selectedType;
+    const description = descriptionInput?.value.trim() || '';
+    const fullDescription = formattedDate
+        ? (description ? `${description}, dated ${formattedDate}` : `dated ${formattedDate}`)
+        : description;
+
+    // Add to state
+    AppState.exhibits.push({ id, type: docType, description: fullDescription, mark });
+
+    // Create display item
     const item = document.createElement('div');
     item.className = 'exhibit-item';
     item.dataset.id = id;
 
-    const exhibitNum = AppState.exhibits.length;
-    const defaultMark = `${document.getElementById('witnessName')?.value?.split(' ').map(n => n[0]).join('') || 'XX'}-${exhibitNum}`;
-
     item.innerHTML = `
         <div class="exhibit-header">
-            <span class="exhibit-number">Exhibit ${exhibitNum}</span>
+            <span class="exhibit-number">${mark}</span>
             <button type="button" class="remove-exhibit-btn" title="Remove exhibit">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -633,58 +687,27 @@ function addExhibit() {
                 </svg>
             </button>
         </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Document Type</label>
-                <select class="exhibit-type">
-                    ${exhibitTypes.map(t => `<option value="${t}">${t}</option>`).join('')}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Exhibit Mark</label>
-                <input type="text" class="exhibit-mark" placeholder="e.g., JD-1" value="${defaultMark}">
-            </div>
-        </div>
-        <div class="form-group custom-type-field hidden">
-            <label>Custom Document Type</label>
-            <input type="text" class="exhibit-custom-type" placeholder="Describe the document">
-        </div>
-        <div class="form-group">
-            <label>Description (optional)</label>
-            <input type="text" class="exhibit-description" placeholder="e.g., dated 15 January 2026">
+        <div class="exhibit-content">
+            <span class="exhibit-type-label">${escapeHtml(docType)}</span>
+            ${fullDescription ? `<span class="exhibit-desc">${escapeHtml(fullDescription)}</span>` : ''}
         </div>
     `;
 
     container.appendChild(item);
 
-    // Event listeners
-    const typeSelect = item.querySelector('.exhibit-type');
-    const customField = item.querySelector('.custom-type-field');
-
-    typeSelect.addEventListener('change', () => {
-        customField.classList.toggle('hidden', typeSelect.value !== 'Other');
-        const exhibit = AppState.exhibits.find(e => e.id === id);
-        if (exhibit) exhibit.type = typeSelect.value;
-    });
-
-    item.querySelector('.exhibit-custom-type').addEventListener('input', (e) => {
-        const exhibit = AppState.exhibits.find(ex => ex.id === id);
-        if (exhibit) exhibit.customType = e.target.value;
-    });
-
-    item.querySelector('.exhibit-description').addEventListener('input', (e) => {
-        const exhibit = AppState.exhibits.find(ex => ex.id === id);
-        if (exhibit) exhibit.description = e.target.value;
-    });
-
-    item.querySelector('.exhibit-mark').addEventListener('input', (e) => {
-        const exhibit = AppState.exhibits.find(ex => ex.id === id);
-        if (exhibit) exhibit.mark = e.target.value;
-    });
-
+    // Add remove listener
     item.querySelector('.remove-exhibit-btn').addEventListener('click', () => {
         removeExhibit(id);
     });
+
+    // Clear the form fields for next exhibit
+    typeSelect.value = '';
+    if (dateInput) dateInput.value = '';
+    if (customTypeInput) customTypeInput.value = '';
+    if (descriptionInput) descriptionInput.value = '';
+    document.getElementById('exhibitCustomTypeGroup').style.display = 'none';
+
+    showToast(`Exhibit ${mark} added`, 'success');
 }
 
 function removeExhibit(id) {
@@ -705,20 +728,12 @@ function renumberExhibits() {
 }
 
 function collectExhibits() {
-    const exhibits = [];
-    document.querySelectorAll('.exhibit-item').forEach(item => {
-        const type = item.querySelector('.exhibit-type').value;
-        const customType = item.querySelector('.exhibit-custom-type').value;
-        const description = item.querySelector('.exhibit-description').value;
-        const mark = item.querySelector('.exhibit-mark').value;
-
-        exhibits.push({
-            type: type === 'Other' ? customType : type,
-            description,
-            mark
-        });
-    });
-    return exhibits;
+    // Return exhibits from state (already collected when added)
+    return AppState.exhibits.map(ex => ({
+        type: ex.type,
+        description: ex.description,
+        mark: ex.mark
+    }));
 }
 
 // ============================================
@@ -730,7 +745,7 @@ function collectDocumentContent() {
         case 'witness-statement':
             const body = AppState.writingMode === 'structured'
                 ? AppState.paragraphs.map(p => p.content).filter(c => c.trim())
-                : document.getElementById('wsBody')?.value.split('\n\n').filter(p => p.trim()) || [];
+                : document.getElementById('freeWritingArea')?.value.split('\n\n').filter(p => p.trim()) || [];
 
             AppState.documentContent = {
                 witnessName: document.getElementById('witnessName')?.value.trim() || '',
